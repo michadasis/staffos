@@ -6,24 +6,55 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState("monthly");
   const [staffReport, setStaffReport] = useState<any[]>([]);
   const [depts, setDepts] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       fetch(`/api/reports?type=staff&period=${period}`).then((r) => r.json()),
       fetch("/api/departments").then((r) => r.json()),
-    ]).then(([s, d]) => {
+      fetch("/api/tasks?limit=200").then((r) => r.json()),
+      fetch("/api/staff?limit=50").then((r) => r.json()),
+    ]).then(([s, d, t, st]) => {
       setStaffReport(s.data || []);
       setDepts(d.data || []);
+      setTasks(t.data || []);
+      setStaff(st.data || []);
     }).finally(() => setLoading(false));
   }, [period]);
 
+  // Build employeeId -> departmentId map
+  const empDeptMap: Record<number, number> = {};
+  staff.forEach((s: any) => {
+    if (s.employee?.id && s.employee?.department?.id) {
+      empDeptMap[s.employee.id] = s.employee.department.id;
+    }
+  });
+
+  // Real department stats
+  const deptStats = depts.map((d: any) => {
+    const deptTasks = tasks.filter((t: any) => {
+      const byTaskDept = t.department?.id === d.id;
+      const byAssigneeDept = t.assignee?.id && empDeptMap[t.assignee.id] === d.id;
+      return byTaskDept || byAssigneeDept;
+    });
+    const unique = Array.from(new Map(deptTasks.map((t: any) => [t.id, t])).values()) as any[];
+    const done = unique.filter((t: any) => t.status === "COMPLETED").length;
+    const rate = unique.length > 0 ? Math.round((done / unique.length) * 100) : 0;
+    const staffCount = staff.filter((s: any) => s.employee?.department?.id === d.id).length;
+    return { ...d, rate, total: unique.length, done, staffCount };
+  }).sort((a: any, b: any) => b.rate - a.rate);
+
   const exportCSV = (data: any[], filename: string) => {
-    const headers = Object.keys(data[0] || {}).join(",");
+    if (!data.length) return;
+    const headers = Object.keys(data[0]).join(",");
     const rows = data.map((r) => Object.values(r).map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([`${headers}\n${rows}`], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `${filename}.csv`; a.click();
+    const a = document.createElement("a");
+    a.href = url; a.download = `${filename}.csv`; a.click();
   };
 
   return (
@@ -44,7 +75,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Report cards */}
+      {/* Export cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { title: "Staff Summary", desc: "All staff, roles, departments & statuses", icon: "👥", color: "#3b82f6", type: "staff" },
@@ -57,7 +88,13 @@ export default function ReportsPage() {
             <div className="text-[14px] font-bold text-text-main mb-1">{r.title}</div>
             <div className="text-[11px] text-text-muted mb-4">{r.desc}</div>
             <div className="flex gap-2">
-              <button onClick={() => staffReport.length && exportCSV(staffReport, `staffos-${r.type}`)}
+              <button
+                onClick={() => {
+                  const data = r.type === "dept"
+                    ? deptStats.map((d: any) => ({ department: d.name, staff: d.staffCount, tasks: d.total, completed: d.done, rate: `${d.rate}%` }))
+                    : staffReport;
+                  exportCSV(data, `staffos-${r.type}`);
+                }}
                 className="flex-1 text-[11px] font-bold py-1.5 rounded-lg border transition-colors"
                 style={{ color: r.color, background: r.color + "15", borderColor: r.color + "30" }}>
                 📊 CSV
@@ -73,8 +110,10 @@ export default function ReportsPage() {
       {/* Staff table */}
       <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b border-border flex justify-between items-center">
-          <div className="text-[14px] font-bold text-text-main">Staff Report — {period.charAt(0).toUpperCase() + period.slice(1)}</div>
-          <button onClick={() => staffReport.length && exportCSV(staffReport, "staffos-staff-report")}
+          <div className="text-[14px] font-bold text-text-main">
+            Staff Report — {period.charAt(0).toUpperCase() + period.slice(1)}
+          </div>
+          <button onClick={() => exportCSV(staffReport, "staffos-staff-report")}
             className="text-xs font-semibold text-accent hover:underline">Export CSV →</button>
         </div>
         {loading ? (
@@ -86,7 +125,7 @@ export default function ReportsPage() {
                 <div key={h} className="text-[10px] font-bold text-text-muted uppercase tracking-wider">{h}</div>
               ))}
             </div>
-            {staffReport.map((s, i) => (
+            {staffReport.map((s: any, i: number) => (
               <div key={i} className={`grid grid-cols-[1.5fr_1.5fr_0.8fr_0.8fr_0.6fr_0.6fr_0.6fr] px-6 py-3 items-center hover:bg-surface-alt transition-colors ${i < staffReport.length - 1 ? "border-b border-border" : ""}`}>
                 <div className="text-[12px] font-semibold text-text-main">{s.name}</div>
                 <div className="text-[11px] text-text-muted truncate">{s.email}</div>
@@ -99,7 +138,8 @@ export default function ReportsPage() {
                   {s.status?.replace("_", " ")}
                 </span>
                 <div className="text-[11px] font-mono text-text-main">{s.tasksTotal}</div>
-                <div className="text-[11px] font-bold font-mono" style={{ color: s.completionRate >= 80 ? "#10b981" : s.completionRate >= 50 ? "#3b82f6" : "#f59e0b" }}>
+                <div className="text-[11px] font-bold font-mono"
+                  style={{ color: s.completionRate >= 80 ? "#10b981" : s.completionRate >= 50 ? "#3b82f6" : "#f59e0b" }}>
                   {s.completionRate}%
                 </div>
               </div>
@@ -109,24 +149,28 @@ export default function ReportsPage() {
         )}
       </div>
 
-      {/* Dept performance */}
+      {/* Department performance — real data */}
       <div className="card p-6">
         <div className="text-[14px] font-bold text-text-main mb-5">Department Performance</div>
-        <div className="space-y-4">
-          {depts.map((d: any) => {
-            const rate = Math.floor(Math.random() * 40 + 60); // placeholder until dept stats endpoint
-            return (
+        {loading ? (
+          <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-6 bg-surface-alt rounded animate-pulse" />)}</div>
+        ) : (
+          <div className="space-y-4">
+            {deptStats.map((d: any) => (
               <div key={d.id} className="flex items-center gap-4">
                 <div className="w-28 text-[12px] text-text-soft flex-shrink-0">{d.name}</div>
                 <div className="flex-1 h-2 bg-border rounded-full">
-                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${rate}%`, background: "linear-gradient(to right, #3b82f6, #10b981)" }} />
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${d.rate}%`, background: "linear-gradient(to right, #3b82f6, #10b981)" }} />
                 </div>
-                <div className="w-10 text-right text-[12px] font-bold font-mono text-text-main">{rate}%</div>
-                <div className="w-8 text-[11px] text-text-muted">{d._count?.employees || 0}p</div>
+                <div className="w-10 text-right text-[12px] font-bold font-mono text-text-main">{d.rate}%</div>
+                <div className="w-20 text-[11px] text-text-muted">{d.done}/{d.total} tasks</div>
+                <div className="w-8 text-[11px] text-text-muted">{d.staffCount}p</div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+            {deptStats.length === 0 && <div className="text-sm text-text-muted text-center py-4">No data</div>}
+          </div>
+        )}
       </div>
     </div>
   );
