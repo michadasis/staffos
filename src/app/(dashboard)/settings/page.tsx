@@ -7,7 +7,11 @@ import toast from "react-hot-toast";
 export default function SettingsPage() {
   const { user, refresh } = useAuth();
   const [tab, setTab] = useState("profile");
-  const [form, setForm] = useState({ name: user?.name || "", email: user?.email || "" });
+  const [form, setForm] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+    jobTitle: user?.employee?.jobTitle || "",
+  });
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [saving, setSaving] = useState(false);
 
@@ -18,7 +22,7 @@ export default function SettingsPage() {
       const res = await fetch(`/api/staff/${user?.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name }),
+        body: JSON.stringify({ name: form.name, jobTitle: form.jobTitle }),
       });
       if (!res.ok) throw new Error("Update failed");
       await refresh();
@@ -70,18 +74,36 @@ export default function SettingsPage() {
           <form onSubmit={saveProfile} className="space-y-4">
             <div>
               <label className="label">Full Name</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="input"
+              />
             </div>
             <div>
               <label className="label">Email Address</label>
-              <input type="email" value={form.email} disabled className="input opacity-50 cursor-not-allowed" />
+              <input
+                type="email"
+                value={form.email}
+                disabled
+                className="input opacity-50 cursor-not-allowed"
+              />
               <p className="text-[10px] text-text-muted mt-1">Email changes require admin approval</p>
             </div>
             <div>
               <label className="label">Job Title</label>
-              <input type="text" defaultValue={user?.employee?.jobTitle || ""} className="input" readOnly />
+              <input
+                type="text"
+                value={form.jobTitle}
+                onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+                className="input"
+                placeholder="e.g. Software Engineer"
+              />
             </div>
-            <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : "Save Changes"}</button>
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
           </form>
         </div>
       )}
@@ -93,7 +115,13 @@ export default function SettingsPage() {
             {[["Current Password", "currentPassword"], ["New Password", "newPassword"], ["Confirm New Password", "confirmPassword"]].map(([l, k]) => (
               <div key={k}>
                 <label className="label">{l}</label>
-                <input type="password" value={(pwForm as any)[k]} onChange={(e) => setPwForm({ ...pwForm, [k]: e.target.value })} className="input" placeholder="••••••••" />
+                <input
+                  type="password"
+                  value={(pwForm as any)[k]}
+                  onChange={(e) => setPwForm({ ...pwForm, [k]: e.target.value })}
+                  className="input"
+                  placeholder="••••••••"
+                />
               </div>
             ))}
             <button type="submit" className="btn-primary">Update Password</button>
