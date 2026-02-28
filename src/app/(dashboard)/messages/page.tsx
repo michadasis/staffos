@@ -1,0 +1,171 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
+
+export default function MessagesPage() {
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [activeConv, setActiveConv] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMsg, setNewMsg] = useState("");
+  const [sending, setSending] = useState(false);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [showNew, setShowNew] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const fetchConversations = () =>
+    fetch("/api/messages").then((r) => r.json()).then(({ data }) => setConversations(data || []));
+
+  useEffect(() => {
+    fetchConversations();
+    fetch("/api/staff?limit=50").then((r) => r.json()).then(({ data }) => setAllUsers(data || []));
+  }, []);
+
+  useEffect(() => {
+    if (activeConv) {
+      fetch(`/api/messages/${activeConv.partner.id}`)
+        .then((r) => r.json())
+        .then(({ data }) => { setMessages(data || []); fetchConversations(); });
+    }
+  }, [activeConv]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!newMsg.trim() || !activeConv) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverId: activeConv.partner.id, content: newMsg }),
+      });
+      const { data } = await res.json();
+      setMessages((m) => [...m, data]);
+      setNewMsg("");
+      fetchConversations();
+    } finally { setSending(false); }
+  };
+
+  const startNewConversation = (partner: any) => {
+    setActiveConv({ partner: { id: partner.id, name: partner.name, avatar: partner.avatar } });
+    setShowNew(false);
+  };
+
+  return (
+    <div className="max-w-6xl h-[calc(100vh-120px)] min-h-[500px] flex gap-0 rounded-2xl overflow-hidden border border-border">
+      {/* Sidebar */}
+      <div className="w-72 flex-shrink-0 bg-surface border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[14px] font-bold text-text-main">Messages</span>
+            <button onClick={() => setShowNew(true)} className="text-accent text-lg hover:text-accent/80">+</button>
+          </div>
+          <input placeholder="Search…" className="input text-xs py-2" />
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {conversations.map((c) => (
+            <div key={c.partner.id} onClick={() => setActiveConv(c)}
+              className={`flex gap-3 px-4 py-3.5 cursor-pointer transition-colors border-l-2
+                ${activeConv?.partner.id === c.partner.id ? "bg-accent-soft border-accent" : "border-transparent hover:bg-surface-alt"}`}>
+              <div className="w-9 h-9 rounded-full bg-accent text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0 font-mono">
+                {c.partner.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between">
+                  <span className="text-[12px] font-bold text-text-main">{c.partner.name?.split(" ")[0]}</span>
+                  <span className="text-[10px] text-text-muted">{c.lastMessage ? new Date(c.lastMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                </div>
+                <div className="text-[11px] text-text-muted truncate mt-0.5">{c.lastMessage?.content}</div>
+              </div>
+              {c.unread > 0 && (
+                <div className="w-4 h-4 rounded-full bg-accent text-[9px] font-bold text-white flex items-center justify-center flex-shrink-0 self-center">{c.unread}</div>
+              )}
+            </div>
+          ))}
+          {conversations.length === 0 && (
+            <div className="p-6 text-center text-text-muted text-xs">No conversations yet.<br />Click + to start one.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Chat area */}
+      {activeConv ? (
+        <div className="flex-1 flex flex-col bg-bg">
+          <div className="px-5 py-3.5 border-b border-border flex items-center gap-3 bg-surface">
+            <div className="w-9 h-9 rounded-full bg-accent text-[11px] font-bold text-white flex items-center justify-center font-mono">
+              {activeConv.partner.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+            </div>
+            <div>
+              <div className="text-[13px] font-bold text-text-main">{activeConv.partner.name}</div>
+              <div className="text-[10px] text-success">● Online</div>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 space-y-3">
+            {messages.map((m) => {
+              const isMe = m.senderId === user?.id;
+              return (
+                <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[65%] px-4 py-2.5 rounded-2xl text-[13px]
+                    ${isMe ? "bg-accent text-white rounded-br-md" : "bg-surface text-text-main rounded-bl-md border border-border"}`}>
+                    {m.content}
+                    <div className={`text-[9px] mt-1 ${isMe ? "text-white/60 text-right" : "text-text-muted"}`}>
+                      {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {messages.length === 0 && (
+              <div className="text-center text-text-muted text-sm pt-10">No messages yet. Say hello! 👋</div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+          <div className="p-4 border-t border-border flex gap-3">
+            <input value={newMsg} onChange={(e) => setNewMsg(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Type a message… (Enter to send)"
+              className="input flex-1 text-sm" />
+            <button onClick={sendMessage} disabled={sending || !newMsg.trim()} className="btn-primary px-5">
+              {sending ? "…" : "Send"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center bg-bg">
+          <div className="text-center">
+            <div className="text-4xl mb-3">💬</div>
+            <div className="text-text-muted text-sm">Select a conversation or start a new one</div>
+            <button onClick={() => setShowNew(true)} className="btn-primary mt-4 text-sm">New Message</button>
+          </div>
+        </div>
+      )}
+
+      {/* New conversation modal */}
+      {showNew && (
+        <div onClick={() => setShowNew(false)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div onClick={(e) => e.stopPropagation()} className="card p-6 w-full max-w-sm">
+            <h3 className="text-[15px] font-bold text-text-main mb-4">Start New Conversation</h3>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {allUsers.filter((u) => u.id !== user?.id).map((u) => (
+                <div key={u.id} onClick={() => startNewConversation(u)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-alt cursor-pointer transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-accent text-[10px] font-bold text-white flex items-center justify-center font-mono">
+                    {u.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div>
+                    <div className="text-[12px] font-semibold text-text-main">{u.name}</div>
+                    <div className="text-[10px] text-text-muted">{u.employee?.department?.name || u.role}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

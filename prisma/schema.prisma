@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  INACTIVE
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  password     String
+  name         String
+  role         Role     @default(STAFF)
+  avatar       String?
+  refreshToken String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee     Employee?
+  auditLogs    AuditLog[]
+  sentMessages    Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  @@index([email])
+}
+
+model Department {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+
+  employees   Employee[]
+  tasks       Task[]
+}
+
+model Employee {
+  id           Int            @id @default(autoincrement())
+  userId       Int            @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId Int?
+  department   Department?    @relation(fields: [departmentId], references: [id])
+  supervisorId Int?
+  supervisor   Employee?      @relation("Supervisor", fields: [supervisorId], references: [id])
+  subordinates Employee[]     @relation("Supervisor")
+  jobTitle     String?
+  phone        String?
+  address      String?
+  joinDate     DateTime       @default(now())
+  status       EmployeeStatus @default(ACTIVE)
+  documents    Document[]
+  assignedTasks Task[]        @relation("AssignedTasks")
+  createdTasks  Task[]        @relation("CreatedTasks")
+  activityLogs ActivityLog[]
+  performanceReports PerformanceReport[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([departmentId])
+  @@index([status])
+}
+
+model Document {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  name       String
+  type       String
+  url        String
+  size       Int?
+  uploadedAt DateTime @default(now())
+}
+
+model Task {
+  id           Int          @id @default(autoincrement())
+  title        String
+  description  String?      @db.Text
+  departmentId Int?
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  assigneeId   Int?
+  assignee     Employee?    @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  createdById  Int
+  createdBy    Employee     @relation("CreatedTasks", fields: [createdById], references: [id])
+  status       TaskStatus   @default(PENDING)
+  priority     TaskPriority @default(MEDIUM)
+  deadline     DateTime?
+  completedAt  DateTime?
+  comments     TaskComment[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([status])
+  @@index([assigneeId])
+  @@index([departmentId])
+}
+
+model TaskComment {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  Int
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  action     String
+  details    String?  @db.Text
+  createdAt  DateTime @default(now())
+}
+
+model PerformanceReport {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period      String
+  score       Float
+  tasksTotal  Int
+  tasksDone   Int
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId Int
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  content    String   @db.Text
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  Int?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+}
