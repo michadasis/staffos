@@ -78,15 +78,21 @@ function DonutChart({ completed, inProgress, pending }: { completed: number; inP
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    if (!user) return;
+    const params = new URLSearchParams();
+    if (user.role === "STAFF" && user.employee?.id) {
+      params.set("employeeId", String(user.employee.id));
+    }
+    fetch(`/api/dashboard?${params}`)
       .then((r) => r.json())
       .then(({ data }) => setStats(data))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -111,87 +117,127 @@ export default function DashboardPage() {
           {greeting()}, {user?.name?.split(" ")[0]} 👋
         </h1>
         <p className="text-sm text-text-muted mt-1">
-          {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} — Here's your company overview.
+          {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          {isAdminOrManager ? " — Here's your company overview." : " — Here's your task overview."}
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 flex-wrap">
-        <StatCard icon="👥" label="Active Staff" value={stats.activeStaff} sub={`↑ ${stats.totalStaff} total`} color="#3b82f6" />
-        <StatCard icon="⏳" label="Pending Tasks" value={stats.pendingTasks} sub="⚠ Needs attention" color="#f59e0b" />
-        <StatCard icon="⚡" label="In Progress" value={stats.inProgressTasks} sub="✓ On track" color="#3b82f6" />
-        <StatCard icon="✅" label="Completed" value={stats.completedTasks} sub="↑ Great work!" color="#10b981" />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card p-5 md:col-span-2">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <div className="text-[14px] font-bold text-text-main">Task Activity</div>
-              <div className="text-xs text-text-muted mt-0.5">Assigned vs Completed (6 months)</div>
-            </div>
-            <div className="flex gap-3">
-              {[["Assigned", "#1e3a5f"], ["Completed", "#3b82f6"]].map(([l, c]) => (
-                <div key={l} className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-sm" style={{ background: c }} />
-                  <span className="text-[10px] text-text-muted">{l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <BarChart data={stats.tasksByMonth} />
+      {/* Stats — different for admin/manager vs staff */}
+      {isAdminOrManager ? (
+        <div className="flex gap-4 flex-wrap">
+          <StatCard icon="👥" label="Active Staff" value={stats.activeStaff} sub={`↑ ${stats.totalStaff} total`} color="#3b82f6" />
+          <StatCard icon="⏳" label="Pending Tasks" value={stats.pendingTasks} sub="⚠ Needs attention" color="#f59e0b" />
+          <StatCard icon="⚡" label="In Progress" value={stats.inProgressTasks} sub="✓ On track" color="#3b82f6" />
+          <StatCard icon="✅" label="Completed" value={stats.completedTasks} sub="↑ Great work!" color="#10b981" />
         </div>
+      ) : (
+        <div className="flex gap-4 flex-wrap">
+          <StatCard icon="⏳" label="My Pending" value={stats.pendingTasks} sub="To do" color="#f59e0b" />
+          <StatCard icon="⚡" label="My In Progress" value={stats.inProgressTasks} sub="Keep going!" color="#3b82f6" />
+          <StatCard icon="✅" label="My Completed" value={stats.completedTasks} sub="Great work!" color="#10b981" />
+        </div>
+      )}
 
-        <div className="card p-5">
-          <div className="text-[14px] font-bold text-text-main mb-0.5">Task Status</div>
-          <div className="text-xs text-text-muted mb-4">Overall distribution</div>
+      {/* Charts — admin/manager only */}
+      {isAdminOrManager && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="card p-5 md:col-span-2">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <div className="text-[14px] font-bold text-text-main">Task Activity</div>
+                <div className="text-xs text-text-muted mt-0.5">Assigned vs Completed (6 months)</div>
+              </div>
+              <div className="flex gap-3">
+                {[["Assigned", "#1e3a5f"], ["Completed", "#3b82f6"]].map(([l, c]) => (
+                  <div key={l} className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-sm" style={{ background: c }} />
+                    <span className="text-[10px] text-text-muted">{l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <BarChart data={stats.tasksByMonth} />
+          </div>
+          <div className="card p-5">
+            <div className="text-[14px] font-bold text-text-main mb-0.5">Task Status</div>
+            <div className="text-xs text-text-muted mb-4">Overall distribution</div>
+            <DonutChart
+              completed={stats.completedTasks}
+              inProgress={stats.inProgressTasks}
+              pending={stats.pendingTasks}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Staff task status chart — for staff members */}
+      {!isAdminOrManager && (
+        <div className="card p-5 max-w-sm">
+          <div className="text-[14px] font-bold text-text-main mb-0.5">My Task Status</div>
+          <div className="text-xs text-text-muted mb-4">Your task breakdown</div>
           <DonutChart
             completed={stats.completedTasks}
             inProgress={stats.inProgressTasks}
             pending={stats.pendingTasks}
           />
         </div>
-      </div>
+      )}
 
-      {/* Top performers + dept stats */}
+      {/* Bottom panels */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card p-5">
-          <div className="text-[14px] font-bold text-text-main mb-4">Top Performers</div>
-          <div className="space-y-3.5">
-            {stats.topPerformers.map((p, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-[11px] text-text-muted font-mono w-4 text-center">{i + 1}</span>
-                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0">
-                  {p.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12px] font-semibold text-text-main truncate">{p.name}</div>
-                  <div className="h-1.5 bg-border rounded-full mt-1">
-                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${p.rate}%` }} />
+        {/* Top performers — admin/manager only */}
+        {isAdminOrManager && (
+          <div className="card p-5">
+            <div className="text-[14px] font-bold text-text-main mb-4">Top Performers</div>
+            <div className="space-y-3.5">
+              {stats.topPerformers.map((p, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-[11px] text-text-muted font-mono w-4 text-center">{i + 1}</span>
+                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0">
+                    {p.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-semibold text-text-main truncate">{p.name}</div>
+                    <div className="h-1.5 bg-border rounded-full mt-1">
+                      <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${p.rate}%` }} />
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold text-accent font-mono">{p.rate}%</span>
                 </div>
-                <span className="text-[11px] font-bold text-accent font-mono">{p.rate}%</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="card p-5">
-          <div className="text-[14px] font-bold text-text-main mb-4">Department Overview</div>
-          <div className="space-y-3.5">
-            {stats.departmentStats.map((d) => (
-              <div key={d.name} className="flex items-center gap-3">
-                <div className="w-24 text-[12px] text-text-soft shrink-0">{d.name}</div>
-                <div className="flex-1 h-2 bg-border rounded-full">
-                  <div className="h-full rounded-full" style={{ width: `${d.rate}%`, background: "linear-gradient(to right, #3b82f6, #10b981)" }} />
+        {/* Department overview — admin/manager only */}
+        {isAdminOrManager && (
+          <div className="card p-5">
+            <div className="text-[14px] font-bold text-text-main mb-4">Department Overview</div>
+            <div className="space-y-3.5">
+              {stats.departmentStats.map((d) => (
+                <div key={d.name} className="flex items-center gap-3">
+                  <div className="w-24 text-[12px] text-text-soft shrink-0">{d.name}</div>
+                  <div className="flex-1 h-2 bg-border rounded-full">
+                    <div className="h-full rounded-full" style={{ width: `${d.rate}%`, background: "linear-gradient(to right, #3b82f6, #10b981)" }} />
+                  </div>
+                  <span className="text-[11px] font-bold text-text-main font-mono w-9 text-right">{d.rate}%</span>
+                  <span className="text-[10px] text-text-muted w-5">{d.count}p</span>
                 </div>
-                <span className="text-[11px] font-bold text-text-main font-mono w-9 text-right">{d.rate}%</span>
-                <span className="text-[10px] text-text-muted w-5">{d.count}p</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* My recent tasks — staff only */}
+        {!isAdminOrManager && (
+          <div className="card p-5 md:col-span-2">
+            <div className="text-[14px] font-bold text-text-main mb-4">My Recent Tasks</div>
+            <p className="text-sm text-text-muted">Head to the <span className="text-accent font-semibold">Tasks</span> page to view and update your assigned tasks.</p>
+            <div className="mt-4 flex gap-3">
+              <a href="/tasks" className="btn-primary text-sm">View My Tasks →</a>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -7,8 +7,34 @@ import { ok, err } from "@/lib/response";
 export async function GET(req: NextRequest) {
   const token = getTokenFromRequest(req);
   if (!token) return err("Unauthorized", 401);
-  try { verifyToken(token); } catch { return err("Invalid token", 401); }
+  let payload;
+  try { payload = verifyToken(token); } catch { return err("Invalid token", 401); }
 
+  const { searchParams } = new URL(req.url);
+  const employeeId = searchParams.get("employeeId");
+  const isStaff = !!employeeId;
+
+  // Staff — only return their own task counts
+  if (isStaff) {
+    const empId = parseInt(employeeId!);
+    const [pending, inProgress, completed] = await Promise.all([
+      prisma.task.count({ where: { assigneeId: empId, status: "PENDING" } }),
+      prisma.task.count({ where: { assigneeId: empId, status: "IN_PROGRESS" } }),
+      prisma.task.count({ where: { assigneeId: empId, status: "COMPLETED" } }),
+    ]);
+    return ok({
+      activeStaff: 0,
+      totalStaff: 0,
+      pendingTasks: pending,
+      inProgressTasks: inProgress,
+      completedTasks: completed,
+      tasksByMonth: [],
+      topPerformers: [],
+      departmentStats: [],
+    });
+  }
+
+  // Admin/Manager — full company stats
   const [activeStaff, pendingTasks, inProgressTasks, completedTasks, totalStaff, employees, depts] =
     await Promise.all([
       prisma.employee.count({ where: { status: "ACTIVE" } }),
@@ -28,9 +54,7 @@ export async function GET(req: NextRequest) {
       prisma.department.findMany({
         include: {
           employees: {
-            include: {
-              assignedTasks: { select: { status: true } },
-            },
+            include: { assignedTasks: { select: { status: true } } },
           },
         },
       }),
@@ -58,7 +82,6 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // 6-month task activity
   const months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date();
     d.setMonth(d.getMonth() - (5 - i));
@@ -73,11 +96,7 @@ export async function GET(req: NextRequest) {
         prisma.task.count({ where: { createdAt: { gte: start, lte: end } } }),
         prisma.task.count({ where: { completedAt: { gte: start, lte: end }, status: "COMPLETED" } }),
       ]);
-      return {
-        month: d.toLocaleString("default", { month: "short" }),
-        assigned,
-        completed,
-      };
+      return { month: d.toLocaleString("default", { month: "short" }), assigned, completed };
     })
   );
 
