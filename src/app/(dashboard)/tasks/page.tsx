@@ -31,6 +31,8 @@ export default function TasksPage() {
   const [view, setView] = useState<"list" | "board">("list");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showCreate, setShowCreate] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
   const [staff, setStaff] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [form, setForm] = useState({ title: "", description: "", priority: "MEDIUM", status: "PENDING", assigneeId: "", departmentId: "", deadline: "" });
@@ -39,11 +41,13 @@ export default function TasksPage() {
   const fetchTasks = () => {
     const params = new URLSearchParams({ limit: "50" });
     if (statusFilter !== "All") params.set("status", statusFilter);
-    // Staff only see their own tasks
     if (user?.role === "STAFF" && user?.employee?.id) {
       params.set("assigneeId", String(user.employee.id));
     }
-    fetch(`/api/tasks?${params}`).then((r) => r.json()).then(({ data }) => setTasks(data || [])).finally(() => setLoading(false));
+    fetch(`/api/tasks?${params}`)
+      .then((r) => r.json())
+      .then(({ data }) => setTasks(data || []))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -79,8 +83,29 @@ export default function TasksPage() {
   };
 
   const updateStatus = async (id: number, status: string) => {
-    const res = await fetch(`/api/tasks/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
     if (res.ok) { toast.success("Status updated"); fetchTasks(); }
+  };
+
+  const handleDelete = async () => {
+    if (!taskToDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskToDelete.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Task deleted");
+      setTaskToDelete(null);
+      fetchTasks();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const statuses = ["All", "PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
@@ -123,14 +148,14 @@ export default function TasksPage() {
         <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="card h-14 animate-pulse bg-surface-alt" />)}</div>
       ) : view === "list" ? (
         <div className="card overflow-hidden">
-          <div className="grid grid-cols-[2fr_1.2fr_0.7fr_0.9fr_0.8fr_auto] px-5 py-3 border-b border-border">
-            {["Task", "Assignee", "Priority", "Deadline", "Status", ""].map((h) => (
-              <div key={h} className="text-[10px] font-bold text-text-muted uppercase tracking-wider">{h}</div>
+          <div className={`grid ${isAdminOrManager ? "grid-cols-[2fr_1.2fr_0.7fr_0.9fr_0.8fr_auto_auto]" : "grid-cols-[2fr_1.2fr_0.7fr_0.9fr_0.8fr_auto]"} px-5 py-3 border-b border-border`}>
+            {["Task", "Assignee", "Priority", "Deadline", "Status", "", ...(isAdminOrManager ? [""] : [])].map((h, i) => (
+              <div key={i} className="text-[10px] font-bold text-text-muted uppercase tracking-wider">{h}</div>
             ))}
           </div>
           {tasks.map((t, i) => (
             <div key={t.id}
-              className={`grid grid-cols-[2fr_1.2fr_0.7fr_0.9fr_0.8fr_auto] px-5 py-3.5 items-center hover:bg-surface-alt transition-colors ${i < tasks.length - 1 ? "border-b border-border" : ""}`}>
+              className={`grid ${isAdminOrManager ? "grid-cols-[2fr_1.2fr_0.7fr_0.9fr_0.8fr_auto_auto]" : "grid-cols-[2fr_1.2fr_0.7fr_0.9fr_0.8fr_auto]"} px-5 py-3.5 items-center hover:bg-surface-alt transition-colors ${i < tasks.length - 1 ? "border-b border-border" : ""}`}>
               <div>
                 <div className="text-[13px] font-semibold text-text-main">{t.title}</div>
                 <div className="text-[10px] text-text-muted mt-0.5">💬 {t._count?.comments || 0} · {t.department?.name || "—"}</div>
@@ -142,18 +167,22 @@ export default function TasksPage() {
                 <span className="text-[12px] text-text-soft truncate">{t.assignee?.user?.name?.split(" ")[0] || "Unassigned"}</span>
               </div>
               <Badge label={t.priority} />
-              <div className="text-[11px] text-text-muted">{t.deadline ? new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
+              <div className="text-[11px] text-text-muted">
+                {t.deadline ? new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+              </div>
               <Badge label={t.status} />
-              {isAdminOrManager ? (
-                <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
-                  className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
-                  {["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                </select>
-              ) : (
-                <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
-                  className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
-                  {["PENDING", "IN_PROGRESS", "COMPLETED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                </select>
+              <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
+                className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
+                {(isAdminOrManager
+                  ? ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
+                  : ["PENDING", "IN_PROGRESS", "COMPLETED"]
+                ).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+              </select>
+              {isAdminOrManager && (
+                <button onClick={() => setTaskToDelete(t)}
+                  className="text-danger hover:bg-danger/10 border border-danger/30 rounded-lg px-2 py-1 text-[11px] font-semibold transition-colors">
+                  🗑
+                </button>
               )}
             </div>
           ))}
@@ -174,7 +203,13 @@ export default function TasksPage() {
                 <div className="space-y-2.5">
                   {colTasks.map((t) => (
                     <div key={t.id} className="bg-bg border border-border rounded-xl p-3.5">
-                      <div className="text-[12px] font-semibold text-text-main mb-2">{t.title}</div>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="text-[12px] font-semibold text-text-main">{t.title}</div>
+                        {isAdminOrManager && (
+                          <button onClick={() => setTaskToDelete(t)}
+                            className="text-danger hover:bg-danger/10 rounded px-1 text-[11px] flex-shrink-0 transition-colors">🗑</button>
+                        )}
+                      </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <div className="w-5 h-5 rounded-full bg-accent text-[8px] font-bold text-white flex items-center justify-center">
@@ -195,7 +230,27 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Create modal - admin/manager only */}
+      {/* Delete task confirm */}
+      {taskToDelete && (
+        <div onClick={() => setTaskToDelete(null)} className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-sm text-center">
+            <div className="text-4xl mb-4">🗑️</div>
+            <h3 className="text-lg font-bold text-text-main mb-2">Delete Task?</h3>
+            <p className="text-sm text-text-muted mb-6">
+              This will permanently delete <span className="text-text-main font-semibold">"{taskToDelete.title}"</span>. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl bg-danger text-white font-bold text-sm hover:bg-red-600 transition-colors">
+                {deleting ? "Deleting…" : "Yes, Delete"}
+              </button>
+              <button onClick={() => setTaskToDelete(null)} className="btn-ghost flex-1">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create modal */}
       {showCreate && isAdminOrManager && (
         <div onClick={() => setShowCreate(false)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-lg">
@@ -207,7 +262,7 @@ export default function TasksPage() {
               </div>
               <div>
                 <label className="label">Description</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value }) } className="input min-h-[80px] resize-none" />
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input min-h-[80px] resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

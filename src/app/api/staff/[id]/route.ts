@@ -38,7 +38,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   try { payload = verifyToken(token); } catch { return err("Invalid token", 401); }
 
   const userId = parseInt(id);
-  if (payload.userId !== userId && !["ADMIN", "MANAGER"].includes(payload.role)) return err("Forbidden", 403);
+  if (payload.userId !== userId && !["ADMIN", "MANAGER"].includes(payload.role)) {
+    return err("Forbidden", 403);
+  }
 
   const body = await req.json();
   const { name, role, departmentId, jobTitle, phone, address, status, supervisorId } = body;
@@ -72,6 +74,44 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   try { payload = verifyToken(token); } catch { return err("Invalid token", 401); }
   if (payload.role !== "ADMIN") return err("Forbidden", 403);
 
-  await prisma.user.delete({ where: { id: parseInt(id) } });
-  return ok({ message: "User deleted" });
+  const userId = parseInt(id);
+
+  // Prevent deleting yourself
+  if (payload.userId === userId) return err("You cannot delete your own account", 400);
+
+  try {
+    // Manually clean up related records that don't cascade
+    await prisma.$transaction(async (tx) => {
+      // Remove sent/received messages
+      await tx.message.deleteMany({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } });
+      // Remove audit logs
+      await tx.auditLog.deleteMany({ where: { userId } });
+      // Get employee id
+      const employee = await tx.employee.findUnique({ where: { userId } });
+      if (employee) {
+        // Unassign tasks instead of deleting them
+        await tx.task.updateMany({ where: { assigneeId: employee.id }, data: { assigneeId: null } });
+        // Delete activity logs
+        await tx.activityLog.deleteMany({ where: { employeeId: employee.id } });
+        // Delete performance reports
+        await tx.performanceReport.deleteMany({ where: { employeeId: employee.id } });
+        // Delete documents
+        await tx.document.deleteMany({ where: { employeeId: employee.id } });
+        // Remove supervisor references
+        await tx.employee.updateMany({ where: { supervisorId: employee.id }, data: { supervisorId: null } });
+        // Delete task comments by this employee's tasks (created tasks)
+        const createdTasks = await tx.task.findMany({ where: { createdById: employee.id }, select: { id: true } });
+        await tx.taskComment.deleteMany({ where: { taskId: { in: createdTasks.map(t => t.id) } } });
+        // Delete tasks created by this employee
+        await tx.task.deleteMany({ where: { createdById: employee.id } });
+      }
+      // Finally delete the user (cascades to employee)
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    return ok({ message: "Employee deleted successfully" });
+  } catch (e: any) {
+    console.error("Delete error:", e);
+    return err(`Failed to delete employee: ${e.message}`, 500);
+  }
 }
