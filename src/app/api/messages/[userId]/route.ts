@@ -4,14 +4,14 @@ import { getTokenFromRequest } from "@/lib/auth";
 import { verifyToken } from "@/lib/jwt";
 import { ok, err } from "@/lib/response";
 
-// GET /api/messages/[userId] - get conversation with a user
-export async function GET(req: NextRequest, { params }: { params: { userId: string } }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ userId: string }> }) {
+  const { userId } = await context.params;
   const token = getTokenFromRequest(req);
   if (!token) return err("Unauthorized", 401);
   let payload;
   try { payload = verifyToken(token); } catch { return err("Invalid token", 401); }
 
-  const partnerId = parseInt(params.userId);
+  const partnerId = parseInt(userId);
 
   const messages = await prisma.message.findMany({
     where: {
@@ -26,7 +26,6 @@ export async function GET(req: NextRequest, { params }: { params: { userId: stri
     orderBy: { createdAt: "asc" },
   });
 
-  // Mark as read
   await prisma.message.updateMany({
     where: { senderId: partnerId, receiverId: payload.userId, read: false },
     data: { read: true },

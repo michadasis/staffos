@@ -4,13 +4,14 @@ import { getTokenFromRequest } from "@/lib/auth";
 import { verifyToken } from "@/lib/jwt";
 import { ok, err } from "@/lib/response";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const token = getTokenFromRequest(req);
   if (!token) return err("Unauthorized", 401);
   try { verifyToken(token); } catch { return err("Invalid token", 401); }
 
   const task = await prisma.task.findUnique({
-    where: { id: parseInt(params.id) },
+    where: { id: parseInt(id) },
     include: {
       department: true,
       assignee: { include: { user: { select: { name: true, avatar: true, email: true } } } },
@@ -22,7 +23,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return ok(task);
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const token = getTokenFromRequest(req);
   if (!token) return err("Unauthorized", 401);
   try { verifyToken(token); } catch { return err("Invalid token", 401); }
@@ -44,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (deadline !== undefined) data.deadline = deadline ? new Date(deadline) : null;
 
   const task = await prisma.task.update({
-    where: { id: parseInt(params.id) },
+    where: { id: parseInt(id) },
     data,
     include: {
       department: true,
@@ -56,13 +58,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return ok(task);
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const token = getTokenFromRequest(req);
   if (!token) return err("Unauthorized", 401);
   let payload;
   try { payload = verifyToken(token); } catch { return err("Invalid token", 401); }
   if (!["ADMIN", "MANAGER"].includes(payload.role)) return err("Forbidden", 403);
 
-  await prisma.task.delete({ where: { id: parseInt(params.id) } });
+  await prisma.task.delete({ where: { id: parseInt(id) } });
   return ok({ message: "Task deleted" });
 }
