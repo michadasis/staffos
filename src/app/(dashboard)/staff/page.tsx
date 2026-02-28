@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import toast from "react-hot-toast";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -8,7 +9,6 @@ const STATUS_COLORS: Record<string, string> = {
   ON_LEAVE: "text-warning bg-warning/10 border-warning/20",
   INACTIVE: "text-danger bg-danger/10 border-danger/20",
 };
-
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: "text-purple-400 bg-purple-400/10 border-purple-400/20",
   MANAGER: "text-accent bg-accent/10 border-accent/20",
@@ -25,6 +25,9 @@ function Badge({ label, type = "status" }: { label: string; type?: "status" | "r
 }
 
 export default function StaffPage() {
+  const { user } = useAuth();
+  const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
+
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -74,19 +77,18 @@ export default function StaffPage() {
 
   return (
     <div className="max-w-7xl space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-extrabold text-text-main">Staff Directory</h2>
           <p className="text-xs text-text-muted mt-0.5">{staff.length} employees</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Employee</button>
+        {isAdminOrManager && (
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Employee</button>
+        )}
       </div>
 
-      {/* Filters */}
       <div className="flex gap-2.5 flex-wrap">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search staff…"
-          className="input w-52 text-sm" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search staff…" className="input w-52 text-sm" />
         {depts.map((d) => (
           <button key={d} onClick={() => setDeptFilter(d)}
             className={`text-xs font-semibold px-3.5 py-2 rounded-xl border transition-colors
@@ -96,7 +98,6 @@ export default function StaffPage() {
         ))}
       </div>
 
-      {/* Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => <div key={i} className="card p-5 h-44 animate-pulse bg-surface-alt" />)}
@@ -152,7 +153,10 @@ export default function StaffPage() {
               <div>
                 <div className="text-lg font-bold text-text-main">{selected.name}</div>
                 <div className="text-sm text-text-muted">{selected.email}</div>
-                <div className="flex gap-1.5 mt-2"><Badge label={selected.role} type="role" /><Badge label={selected.employee?.status || "ACTIVE"} /></div>
+                <div className="flex gap-1.5 mt-2">
+                  <Badge label={selected.role} type="role" />
+                  <Badge label={selected.employee?.status || "ACTIVE"} />
+                </div>
               </div>
             </div>
             {[
@@ -167,15 +171,15 @@ export default function StaffPage() {
               </div>
             ))}
             <div className="flex gap-2.5 mt-5">
-              <button className="btn-primary flex-1">Edit Profile</button>
+              {isAdminOrManager && <button className="btn-primary flex-1">Edit Profile</button>}
               <button onClick={() => setSelected(null)} className="btn-ghost flex-1">Close</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add modal */}
-      {showAdd && (
+      {/* Add modal - admin/manager only */}
+      {showAdd && isAdminOrManager && (
         <div onClick={() => setShowAdd(false)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-md">
             <h3 className="text-lg font-bold text-text-main mb-5">Add New Employee</h3>
@@ -198,7 +202,7 @@ export default function StaffPage() {
                 <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="input">
                   <option value="STAFF">Staff</option>
                   <option value="MANAGER">Manager</option>
-                  <option value="ADMIN">Admin</option>
+                  {user?.role === "ADMIN" && <option value="ADMIN">Admin</option>}
                 </select>
               </div>
               <div className="flex gap-2.5 pt-1">

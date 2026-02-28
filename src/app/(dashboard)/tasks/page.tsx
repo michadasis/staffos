@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import toast from "react-hot-toast";
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -22,6 +23,9 @@ function Badge({ label }: { label: string }) {
 }
 
 export default function TasksPage() {
+  const { user } = useAuth();
+  const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
+
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "board">("list");
@@ -35,15 +39,21 @@ export default function TasksPage() {
   const fetchTasks = () => {
     const params = new URLSearchParams({ limit: "50" });
     if (statusFilter !== "All") params.set("status", statusFilter);
+    // Staff only see their own tasks
+    if (user?.role === "STAFF" && user?.employee?.id) {
+      params.set("assigneeId", String(user.employee.id));
+    }
     fetch(`/api/tasks?${params}`).then((r) => r.json()).then(({ data }) => setTasks(data || [])).finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    fetch("/api/staff?limit=50").then((r) => r.json()).then(({ data }) => setStaff(data || []));
-    fetch("/api/departments").then((r) => r.json()).then(({ data }) => setDepartments(data || []));
-  }, []);
+    if (isAdminOrManager) {
+      fetch("/api/staff?limit=50").then((r) => r.json()).then(({ data }) => setStaff(data || []));
+      fetch("/api/departments").then((r) => r.json()).then(({ data }) => setDepartments(data || []));
+    }
+  }, [isAdminOrManager]);
 
-  useEffect(() => { fetchTasks(); }, [statusFilter]);
+  useEffect(() => { if (user) fetchTasks(); }, [statusFilter, user]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,10 +90,14 @@ export default function TasksPage() {
     <div className="max-w-7xl space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-text-main">Task Management</h2>
+          <h2 className="text-xl font-extrabold text-text-main">
+            {isAdminOrManager ? "Task Management" : "My Tasks"}
+          </h2>
           <p className="text-xs text-text-muted mt-0.5">{tasks.length} tasks</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary">+ New Task</button>
+        {isAdminOrManager && (
+          <button onClick={() => setShowCreate(true)} className="btn-primary">+ New Task</button>
+        )}
       </div>
 
       <div className="flex gap-2.5 flex-wrap items-center">
@@ -130,10 +144,17 @@ export default function TasksPage() {
               <Badge label={t.priority} />
               <div className="text-[11px] text-text-muted">{t.deadline ? new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
               <Badge label={t.status} />
-              <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
-                className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
-                {["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-              </select>
+              {isAdminOrManager ? (
+                <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
+                  className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
+                  {["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                </select>
+              ) : (
+                <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
+                  className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
+                  {["PENDING", "IN_PROGRESS", "COMPLETED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                </select>
+              )}
             </div>
           ))}
           {tasks.length === 0 && <div className="p-10 text-center text-text-muted text-sm">No tasks found</div>}
@@ -174,8 +195,8 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Create modal */}
-      {showCreate && (
+      {/* Create modal - admin/manager only */}
+      {showCreate && isAdminOrManager && (
         <div onClick={() => setShowCreate(false)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-lg">
             <h3 className="text-lg font-bold text-text-main mb-5">Create New Task</h3>
@@ -186,8 +207,7 @@ export default function TasksPage() {
               </div>
               <div>
                 <label className="label">Description</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="input min-h-[80px] resize-none" />
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value }) } className="input min-h-[80px] resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

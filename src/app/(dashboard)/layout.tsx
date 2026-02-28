@@ -6,14 +6,14 @@ import Link from "next/link";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import toast from "react-hot-toast";
 
-const NAV = [
-  { href: "/dashboard", icon: "▣", label: "Dashboard" },
-  { href: "/staff", icon: "👥", label: "Staff" },
-  { href: "/tasks", icon: "✅", label: "Tasks" },
-  { href: "/performance", icon: "📊", label: "Performance" },
-  { href: "/messages", icon: "💬", label: "Messages" },
-  { href: "/reports", icon: "📈", label: "Reports" },
-  { href: "/settings", icon: "⚙️", label: "Settings" },
+const NAV_ALL = [
+  { href: "/dashboard", icon: "▣", label: "Dashboard", roles: ["ADMIN", "MANAGER", "STAFF"] },
+  { href: "/staff", icon: "👥", label: "Staff", roles: ["ADMIN", "MANAGER"] },
+  { href: "/tasks", icon: "✅", label: "Tasks", roles: ["ADMIN", "MANAGER", "STAFF"] },
+  { href: "/performance", icon: "📊", label: "Performance", roles: ["ADMIN", "MANAGER"] },
+  { href: "/messages", icon: "💬", label: "Messages", roles: ["ADMIN", "MANAGER", "STAFF"] },
+  { href: "/reports", icon: "📈", label: "Reports", roles: ["ADMIN", "MANAGER"] },
+  { href: "/settings", icon: "⚙️", label: "Settings", roles: ["ADMIN", "MANAGER", "STAFF"] },
 ];
 
 function Avatar({ name, size = 36 }: { name: string; size?: number }) {
@@ -30,26 +30,24 @@ function Avatar({ name, size = 36 }: { name: string; size?: number }) {
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const role = user?.role || "STAFF";
+  const nav = NAV_ALL.filter((n) => n.roles.includes(role));
 
   return (
     <aside className={`flex flex-col bg-surface border-r border-border transition-all duration-300 ${collapsed ? "w-[68px]" : "w-[230px]"} flex-shrink-0 h-screen sticky top-0`}>
-      {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-base flex-shrink-0">⚡</div>
         {!collapsed && <span className="font-extrabold text-[15px] tracking-tight text-text-main whitespace-nowrap">StaffOS</span>}
-        <button onClick={onToggle} className={`ml-auto text-text-muted hover:text-text-main transition-colors ${collapsed ? "hidden" : "block"}`}>
-          ◀
-        </button>
+        <button onClick={onToggle} className={`ml-auto text-text-muted hover:text-text-main transition-colors ${collapsed ? "hidden" : "block"}`}>◀</button>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 p-2.5 space-y-0.5 overflow-y-auto">
-        {NAV.map((n) => {
+        {nav.map((n) => {
           const active = pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href));
           return (
             <Link key={n.href} href={n.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 whitespace-nowrap
-                ${active ? "bg-accent-soft text-accent border-l-2 border-accent ml-0" : "text-text-muted hover:bg-surface-alt hover:text-text-soft"}`}>
+                ${active ? "bg-accent-soft text-accent border-l-2 border-accent" : "text-text-muted hover:bg-surface-alt hover:text-text-soft"}`}>
               <span className="text-base flex-shrink-0">{n.icon}</span>
               {!collapsed && <span>{n.label}</span>}
             </Link>
@@ -57,7 +55,18 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         })}
       </nav>
 
-      {/* User */}
+      {/* Role badge */}
+      {!collapsed && (
+        <div className="px-4 pb-2">
+          <div className={`text-[10px] font-bold px-2.5 py-1 rounded-full border w-fit
+            ${role === "ADMIN" ? "text-purple-400 bg-purple-400/10 border-purple-400/20" :
+              role === "MANAGER" ? "text-accent bg-accent/10 border-accent/20" :
+              "text-text-soft bg-text-soft/10 border-text-soft/20"}`}>
+            {role}
+          </div>
+        </div>
+      )}
+
       <div className="border-t border-border p-3">
         {user && (
           <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
@@ -65,7 +74,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <div className="text-[12px] font-bold text-text-main truncate">{user.name}</div>
-                <div className="text-[10px] text-text-muted truncate">{user.role}</div>
+                <div className="text-[10px] text-text-muted truncate">{user.employee?.department?.name || user.role}</div>
               </div>
             )}
             {!collapsed && (
@@ -83,7 +92,7 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
-  const pageTitle = NAV.find((n) => pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href)))?.label || "Dashboard";
+  const pageTitle = NAV_ALL.find((n) => pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href)))?.label || "Dashboard";
 
   return (
     <header className="h-14 bg-surface border-b border-border flex items-center px-6 gap-4 flex-shrink-0 sticky top-0 z-30">
@@ -91,12 +100,10 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
       <h2 className="text-[15px] font-bold text-text-main">{pageTitle}</h2>
       <div className="flex-1" />
       <div className="flex items-center gap-3">
-        {/* Search */}
         <div className="hidden md:flex items-center gap-2 bg-bg border border-border rounded-xl px-3 py-2 text-sm">
           <span className="text-text-muted">🔍</span>
           <input placeholder="Quick search…" className="bg-transparent outline-none text-text-main text-xs w-32 placeholder-text-muted" />
         </div>
-        {/* Notifications */}
         <div className="relative">
           <button onClick={() => setNotifOpen(!notifOpen)}
             className="w-9 h-9 bg-bg border border-border rounded-xl flex items-center justify-center text-base hover:border-accent/50 transition-colors relative">
@@ -108,7 +115,7 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
               <div className="text-sm font-bold text-text-main mb-3">Notifications</div>
               {[
                 { icon: "💬", text: "Alexandra Chen sent you a message", time: "10m ago" },
-                { icon: "✅", text: "Task 'Budget Reconciliation' updated", time: "1h ago" },
+                { icon: "✅", text: "Task updated", time: "1h ago" },
               ].map((n, i) => (
                 <div key={i} className="flex gap-3 py-2.5 border-b border-border last:border-0">
                   <span>{n.icon}</span>
@@ -125,6 +132,27 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
     </header>
   );
+}
+
+function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const routeConfig = NAV_ALL.find((n) => pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href)));
+
+  useEffect(() => {
+    if (routeConfig && user && !routeConfig.roles.includes(user.role)) {
+      router.replace("/dashboard");
+      toast.error("You don't have permission to view that page");
+    }
+  }, [user, routeConfig, router]);
+
+  if (routeConfig && user && !routeConfig.roles.includes(user.role)) {
+    return null;
+  }
+
+  return <>{children}</>;
 }
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
@@ -155,7 +183,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar onMenuClick={() => setCollapsed(!collapsed)} />
         <main className="flex-1 overflow-y-auto p-6 bg-bg">
-          {children}
+          <RoleGuard>{children}</RoleGuard>
         </main>
       </div>
     </div>
