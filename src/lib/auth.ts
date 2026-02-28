@@ -6,7 +6,7 @@ export const COOKIE_NAME = "staffos_token";
 
 export async function getAuthUser(): Promise<JWTPayload | null> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value;
     if (!token) return null;
     return verifyToken(token);
