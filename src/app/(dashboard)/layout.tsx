@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
@@ -21,7 +21,7 @@ function Avatar({ name, size = 36 }: { name: string; size?: number }) {
   const colors = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
   const bg = colors[name.charCodeAt(0) % colors.length];
   return (
-    <div style={{ width: size, height: size, background: bg, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "var(--font-dm-mono)" }}>
+    <div style={{ width: size, height: size, background: bg, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
       {initials}
     </div>
   );
@@ -55,7 +55,6 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         })}
       </nav>
 
-      {/* Role badge */}
       {!collapsed && (
         <div className="px-4 pb-2">
           <div className={`text-[10px] font-bold px-2.5 py-1 rounded-full border w-fit
@@ -72,14 +71,13 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
           <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
             <Avatar name={user.name} size={34} />
             {!collapsed && (
-              <div className="flex-1 min-w-0">
-                <div className="text-[12px] font-bold text-text-main truncate">{user.name}</div>
-                <div className="text-[10px] text-text-muted truncate">{user.employee?.department?.name || user.role}</div>
-              </div>
-            )}
-            {!collapsed && (
-              <button onClick={() => { logout(); toast.success("Signed out"); }}
-                className="text-text-muted hover:text-danger transition-colors text-sm" title="Logout">↩</button>
+              <>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-bold text-text-main truncate">{user.name}</div>
+                  <div className="text-[10px] text-text-muted truncate">{user.employee?.department?.name || user.role}</div>
+                </div>
+                <button onClick={() => { logout(); toast.success("Signed out"); }} className="text-text-muted hover:text-danger transition-colors text-sm" title="Logout">↩</button>
+              </>
             )}
           </div>
         )}
@@ -88,10 +86,112 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   );
 }
 
+function NotificationBell() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const fetchNotifications = useCallback(() => {
+    if (!user) return;
+    setLoading(true);
+    fetch("/api/notifications")
+      .then((r) => r.json())
+      .then(({ data }) => {
+        setNotifications(data?.notifications || []);
+        setUnreadCount(data?.unreadCount || 0);
+      })
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // poll every 30s
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  const markAllRead = async () => {
+    if (!user) return;
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id }),
+    });
+    setUnreadCount(0);
+    setNotifications((n) => n.map((x) => ({ ...x, read: true })));
+  };
+
+  const handleNotifClick = (n: any) => {
+    setOpen(false);
+    if (n.link) router.push(n.link);
+  };
+
+  const timeAgo = (date: string) => {
+    const diff = Date.now() - new Date(date).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
+        className="w-9 h-9 bg-bg border border-border rounded-xl flex items-center justify-center text-base hover:border-accent/50 transition-colors relative">
+        🔔
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-12 bg-surface border border-border rounded-2xl w-80 z-50 shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span className="text-sm font-bold text-text-main">Notifications</span>
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="text-[11px] text-accent hover:underline">Mark all read</button>
+              )}
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {loading ? (
+                <div className="p-4 space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-surface-alt rounded-lg animate-pulse" />)}</div>
+              ) : notifications.length === 0 ? (
+                <div className="p-6 text-center">
+                  <div className="text-2xl mb-2">🔔</div>
+                  <div className="text-sm text-text-muted">You're all caught up!</div>
+                </div>
+              ) : (
+                notifications.map((n) => (
+                  <button key={n.id} onClick={() => handleNotifClick(n)}
+                    className={`w-full flex gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-surface-alt transition-colors text-left ${!n.read ? "bg-accent/5" : ""}`}>
+                    <span className="text-lg flex-shrink-0 mt-0.5">{n.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-[12px] leading-snug ${!n.read ? "text-text-main font-semibold" : "text-text-soft"}`}>{n.text}</div>
+                      <div className="text-[10px] text-text-muted mt-1">{timeAgo(n.time)}</div>
+                    </div>
+                    {!n.read && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-1.5" />}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
-  const [notifOpen, setNotifOpen] = useState(false);
   const pageTitle = NAV_ALL.find((n) => pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href)))?.label || "Dashboard";
 
   return (
@@ -104,41 +204,17 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           <span className="text-text-muted">🔍</span>
           <input placeholder="Quick search…" className="bg-transparent outline-none text-text-main text-xs w-32 placeholder-text-muted" />
         </div>
-        <div className="relative">
-          <button onClick={() => setNotifOpen(!notifOpen)}
-            className="w-9 h-9 bg-bg border border-border rounded-xl flex items-center justify-center text-base hover:border-accent/50 transition-colors relative">
-            🔔
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center">2</span>
-          </button>
-          {notifOpen && (
-            <div onClick={() => setNotifOpen(false)} className="absolute right-0 top-12 bg-surface border border-border rounded-2xl p-4 w-72 z-50 shadow-xl">
-              <div className="text-sm font-bold text-text-main mb-3">Notifications</div>
-              {[
-                { icon: "💬", text: "Alexandra Chen sent you a message", time: "10m ago" },
-                { icon: "✅", text: "Task updated", time: "1h ago" },
-              ].map((n, i) => (
-                <div key={i} className="flex gap-3 py-2.5 border-b border-border last:border-0">
-                  <span>{n.icon}</span>
-                  <div>
-                    <div className="text-xs text-text-soft">{n.text}</div>
-                    <div className="text-[10px] text-text-muted mt-0.5">{n.time}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <NotificationBell />
         {user && <Avatar name={user.name} size={34} />}
       </div>
     </header>
   );
 }
 
-function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
+function RoleGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-
   const routeConfig = NAV_ALL.find((n) => pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href)));
 
   useEffect(() => {
@@ -148,10 +224,7 @@ function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allo
     }
   }, [user, routeConfig, router]);
 
-  if (routeConfig && user && !routeConfig.roles.includes(user.role)) {
-    return null;
-  }
-
+  if (routeConfig && user && !routeConfig.roles.includes(user.role)) return null;
   return <>{children}</>;
 }
 
@@ -160,20 +233,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) router.push("/login");
-  }, [user, loading, router]);
+  useEffect(() => { if (!loading && !user) router.push("/login"); }, [user, loading, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-lg animate-pulse">⚡</div>
-          <div className="text-text-muted text-sm">Loading StaffOS…</div>
-        </div>
+  if (loading) return (
+    <div className="min-h-screen bg-bg flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-lg animate-pulse">⚡</div>
+        <div className="text-text-muted text-sm">Loading StaffOS…</div>
       </div>
-    );
-  }
+    </div>
+  );
 
   if (!user) return null;
 
@@ -191,9 +260,5 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AuthProvider>
-      <DashboardInner>{children}</DashboardInner>
-    </AuthProvider>
-  );
+  return <AuthProvider><DashboardInner>{children}</DashboardInner></AuthProvider>;
 }

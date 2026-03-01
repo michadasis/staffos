@@ -26,9 +26,76 @@ function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   const colors = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
   const bg = colors[name.charCodeAt(0) % colors.length];
   return (
-    <div style={{ width: size, height: size, background: bg, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 700, color: "#fff", fontFamily: "var(--font-dm-mono)" }}>
+    <div style={{ width: size, height: size, background: bg, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 700, color: "#fff" }}>
       {name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
     </div>
+  );
+}
+
+// ⚠️ CRITICAL: TaskFormFields must be defined OUTSIDE the page component
+// to prevent React from unmounting inputs on every keystroke
+function TaskFormFields({ form, setForm, staff, departments }: {
+  form: any; setForm: (f: any) => void; staff: any[]; departments: any[];
+}) {
+  return (
+    <>
+      <div>
+        <label className="label">Task Title</label>
+        <input
+          type="text"
+          value={form.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          className="input"
+          required
+        />
+      </div>
+      <div>
+        <label className="label">Description</label>
+        <textarea
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          className="input min-h-[70px] resize-none"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Priority</label>
+          <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">
+            {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Status</label>
+          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">
+            {["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="label">Assignee</label>
+        <select value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })} className="input">
+          <option value="">— Unassigned —</option>
+          {staff.map((s: any) => (
+            <option key={s.employee?.id} value={s.employee?.id}>
+              {s.name} · {s.employee?.department?.name || s.role}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Department</label>
+          <select value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })} className="input">
+            <option value="">None</option>
+            {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Deadline</label>
+          <input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="input" />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -41,10 +108,7 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
   const isAdminOrManager = currentUser?.role === "ADMIN" || currentUser?.role === "MANAGER";
 
   const fetchComments = () => {
-    fetch(`/api/tasks/${task.id}/comments`)
-      .then((r) => r.json())
-      .then(({ data }) => setComments(data || []))
-      .finally(() => setLoading(false));
+    fetch(`/api/tasks/${task.id}/comments`).then((r) => r.json()).then(({ data }) => setComments(data || [])).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchComments(); }, [task.id]);
@@ -55,9 +119,7 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
     setPosting(true);
     try {
       const res = await fetch(`/api/tasks/${task.id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newComment }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: newComment }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -75,26 +137,22 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="card w-full max-w-lg flex flex-col" style={{ maxHeight: "85vh" }}>
-        {/* Header */}
         <div className="px-6 py-4 border-b border-border flex-shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[15px] font-bold text-text-main">{task.title}</div>
-              <div className="flex gap-2 mt-1.5">
+              <div className="flex gap-2 mt-1.5 flex-wrap">
                 <Badge label={task.status} />
                 <Badge label={task.priority} />
                 {task.department && <span className="text-[10px] text-text-muted bg-surface-alt px-2 py-0.5 rounded-full border border-border">{task.department.name}</span>}
               </div>
-              {task.description && <p className="text-[12px] text-text-muted mt-2 leading-relaxed">{task.description}</p>}
+              {task.description && <p className="text-[12px] text-text-muted mt-2">{task.description}</p>}
             </div>
             <button onClick={onClose} className="text-text-muted hover:text-text-main text-lg flex-shrink-0">✕</button>
           </div>
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
             {task.assignee ? (
-              <>
-                <Avatar name={task.assignee.user.name} size={20} />
-                <span className="text-[11px] text-text-muted">Assigned to <span className="text-text-soft font-semibold">{task.assignee.user.name}</span></span>
-              </>
+              <><Avatar name={task.assignee.user.name} size={18} /><span className="text-[11px] text-text-muted">Assigned to <span className="text-text-soft font-semibold">{task.assignee.user.name}</span></span></>
             ) : (
               <span className="text-[11px] text-text-muted italic">Unassigned</span>
             )}
@@ -102,18 +160,12 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
           </div>
         </div>
 
-        {/* Comments */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
-          <div className="text-[11px] font-bold text-text-muted uppercase tracking-wide">
-            💬 Discussion · {comments.length} comment{comments.length !== 1 ? "s" : ""}
-          </div>
+          <div className="text-[11px] font-bold text-text-muted uppercase tracking-wide">💬 Discussion · {comments.length} comment{comments.length !== 1 ? "s" : ""}</div>
           {loading ? (
-            <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-surface-alt rounded-xl animate-pulse" />)}</div>
+            <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-surface-alt rounded-xl animate-pulse" />)}</div>
           ) : comments.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-3xl mb-2">💬</div>
-              <div className="text-sm text-text-muted">No comments yet. Start the discussion!</div>
-            </div>
+            <div className="text-center py-8"><div className="text-3xl mb-2">💬</div><div className="text-sm text-text-muted">No comments yet. Start the discussion!</div></div>
           ) : (
             comments.map((c) => {
               const isOwn = c.authorId === currentUser?.id;
@@ -123,19 +175,12 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 mb-1">
                       <span className="text-[12px] font-bold text-text-main">{c.authorName}</span>
-                      <span className="text-[10px] text-text-muted">
-                        {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} at {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
+                      <span className="text-[10px] text-text-muted">{new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                       {(isOwn || isAdminOrManager) && (
-                        <button onClick={() => deleteComment(c.id)}
-                          className="ml-auto text-[10px] text-danger opacity-0 group-hover:opacity-100 transition-opacity hover:underline">
-                          Delete
-                        </button>
+                        <button onClick={() => deleteComment(c.id)} className="ml-auto text-[10px] text-danger opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Delete</button>
                       )}
                     </div>
-                    <div className="text-[13px] text-text-soft leading-relaxed bg-surface-alt border border-border rounded-xl px-3.5 py-2.5">
-                      {c.content}
-                    </div>
+                    <div className="text-[13px] text-text-soft leading-relaxed bg-surface-alt border border-border rounded-xl px-3.5 py-2.5">{c.content}</div>
                   </div>
                 </div>
               );
@@ -144,24 +189,19 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
         <div className="px-6 py-4 border-t border-border flex-shrink-0">
           <div className="flex gap-3 items-end">
             <Avatar name={currentUser?.name || "?"} size={28} />
-            <div className="flex-1">
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postComment(); } }}
-                placeholder="Write a comment… (Enter to post, Shift+Enter for new line)"
-                className="input text-sm resize-none min-h-[70px]"
-              />
-            </div>
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postComment(); } }}
+              placeholder="Write a comment… (Enter to post)"
+              className="input text-sm resize-none min-h-[70px] flex-1"
+            />
           </div>
           <div className="flex justify-end mt-2">
-            <button onClick={postComment} disabled={posting || !newComment.trim()} className="btn-primary text-sm px-5">
-              {posting ? "Posting…" : "Post Comment"}
-            </button>
+            <button onClick={postComment} disabled={posting || !newComment.trim()} className="btn-primary text-sm px-5">{posting ? "Posting…" : "Post Comment"}</button>
           </div>
         </div>
       </div>
@@ -182,13 +222,12 @@ export default function TasksPage() {
   const [taskToDelete, setTaskToDelete] = useState<any>(null);
   const [taskToEdit, setTaskToEdit] = useState<any>(null);
   const [taskForDiscussion, setTaskForDiscussion] = useState<any>(null);
-  const [editForm, setEditForm] = useState<any>({});
+  const [editForm, setEditForm] = useState({ title: "", description: "", priority: "MEDIUM", status: "PENDING", assigneeId: "", departmentId: "", deadline: "" });
+  const [createForm, setCreateForm] = useState({ title: "", description: "", priority: "MEDIUM", status: "PENDING", assigneeId: "", departmentId: "", deadline: "" });
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
-
   const [staff, setStaff] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [createForm, setCreateForm] = useState({ title: "", description: "", priority: "MEDIUM", status: "PENDING", assigneeId: "", departmentId: "", deadline: "" });
 
   const fetchTasks = () => {
     const params = new URLSearchParams({ limit: "50" });
@@ -217,48 +256,31 @@ export default function TasksPage() {
   };
 
   const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+    e.preventDefault(); setSaving(true);
     try {
       const res = await fetch(`/api/tasks/${taskToEdit.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...editForm,
-          assigneeId: editForm.assigneeId ? parseInt(editForm.assigneeId) : null,
-          departmentId: editForm.departmentId ? parseInt(editForm.departmentId) : null,
-        }),
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...editForm, assigneeId: editForm.assigneeId ? parseInt(editForm.assigneeId) : null, departmentId: editForm.departmentId ? parseInt(editForm.departmentId) : null }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
-      toast.success("Task updated!");
-      setTaskToEdit(null);
-      fetchTasks();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
+      toast.success("Task updated!"); setTaskToEdit(null); fetchTasks();
+    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+    e.preventDefault(); setSaving(true);
     try {
       const res = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...createForm,
-          assigneeId: createForm.assigneeId ? parseInt(createForm.assigneeId) : null,
-          departmentId: createForm.departmentId ? parseInt(createForm.departmentId) : null,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...createForm, assigneeId: createForm.assigneeId ? parseInt(createForm.assigneeId) : null, departmentId: createForm.departmentId ? parseInt(createForm.departmentId) : null }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
-      toast.success("Task created!");
-      setShowCreate(false);
+      toast.success("Task created!"); setShowCreate(false);
       setCreateForm({ title: "", description: "", priority: "MEDIUM", status: "PENDING", assigneeId: "", departmentId: "", deadline: "" });
       fetchTasks();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };
 
   const updateStatus = async (id: number, status: string) => {
@@ -267,67 +289,14 @@ export default function TasksPage() {
   };
 
   const handleDelete = async () => {
-    if (!taskToDelete) return;
-    setDeleting(true);
+    if (!taskToDelete) return; setDeleting(true);
     try {
       const res = await fetch(`/api/tasks/${taskToDelete.id}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
-      toast.success("Task deleted");
-      setTaskToDelete(null);
-      fetchTasks();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setDeleting(false); }
+      toast.success("Task deleted"); setTaskToDelete(null); fetchTasks();
+    } catch (err: any) { toast.error(err.message); } finally { setDeleting(false); }
   };
-
-  const TaskFormFields = ({ form, setForm }: { form: any; setForm: any }) => (
-    <>
-      <div>
-        <label className="label">Task Title</label>
-        <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input" required />
-      </div>
-      <div>
-        <label className="label">Description</label>
-        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input min-h-[70px] resize-none" />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="label">Priority</label>
-          <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">
-            {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((p) => <option key={p}>{p}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="label">Status</label>
-          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">
-            {["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label className="label">Assignee</label>
-        <select value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })} className="input">
-          <option value="">— Unassigned —</option>
-          {staff.map((s: any) => (
-            <option key={s.employee?.id} value={s.employee?.id}>{s.name} · {s.employee?.department?.name || s.role}</option>
-          ))}
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="label">Department</label>
-          <select value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })} className="input">
-            <option value="">None</option>
-            {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="label">Deadline</label>
-          <input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="input" />
-        </div>
-      </div>
-    </>
-  );
 
   const statuses = ["All", "PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
   const cols = ["PENDING", "IN_PROGRESS", "COMPLETED"];
@@ -374,37 +343,26 @@ export default function TasksPage() {
             <div key={t.id} className={`grid grid-cols-[2fr_1.4fr_0.7fr_0.9fr_0.8fr_auto] px-5 py-3.5 items-center hover:bg-surface-alt transition-colors ${i < tasks.length - 1 ? "border-b border-border" : ""}`}>
               <div>
                 <div className="text-[13px] font-semibold text-text-main">{t.title}</div>
-                <button onClick={() => setTaskForDiscussion(t)}
-                  className="text-[10px] text-text-muted hover:text-accent transition-colors mt-0.5 flex items-center gap-1">
-                  💬 {t._count?.comments || 0} {t._count?.comments === 1 ? "comment" : "comments"}
-                  {t._count?.comments > 0 && <span className="text-accent">· View</span>}
+                <button onClick={() => setTaskForDiscussion(t)} className="text-[10px] text-text-muted hover:text-accent transition-colors mt-0.5 flex items-center gap-1">
+                  💬 {t._count?.comments || 0} comments{t._count?.comments > 0 && <span className="text-accent"> · View</span>}
                 </button>
               </div>
               <div className="flex items-center gap-2">
                 {t.assignee ? (
-                  <>
-                    <Avatar name={t.assignee.user.name} size={24} />
-                    <span className="text-[12px] text-text-soft truncate">{t.assignee.user.name}</span>
-                  </>
+                  <><Avatar name={t.assignee.user.name} size={24} /><span className="text-[12px] text-text-soft truncate">{t.assignee.user.name}</span></>
                 ) : (
                   <span className="text-[11px] text-text-muted italic px-2 py-0.5 rounded-lg border border-dashed border-border">Unassigned</span>
                 )}
               </div>
               <Badge label={t.priority} />
-              <div className="text-[11px] text-text-muted">
-                {t.deadline ? new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
-              </div>
+              <div className="text-[11px] text-text-muted">{t.deadline ? new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
               <Badge label={t.status} />
               <div className="flex items-center gap-1.5">
                 <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
                   className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
-                  {(isAdminOrManager ? ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"] : ["PENDING", "IN_PROGRESS", "COMPLETED"])
-                    .map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                  {(isAdminOrManager ? ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"] : ["PENDING", "IN_PROGRESS", "COMPLETED"]).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
                 </select>
-                <button onClick={() => setTaskForDiscussion(t)}
-                  className="text-text-muted hover:text-accent border border-border hover:border-accent/40 rounded-lg px-2 py-1 text-[11px] transition-colors" title="Discussion">
-                  💬
-                </button>
+                <button onClick={() => setTaskForDiscussion(t)} className="text-text-muted hover:text-accent border border-border hover:border-accent/40 rounded-lg px-2 py-1 text-[11px] transition-colors" title="Discussion">💬</button>
                 {isAdminOrManager && (
                   <>
                     <button onClick={() => openEdit(t)} className="text-accent hover:bg-accent/10 border border-accent/30 rounded-lg px-2 py-1 text-[11px] transition-colors">✏️</button>
@@ -441,17 +399,12 @@ export default function TasksPage() {
                         )}
                       </div>
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-1.5">
-                          {t.assignee ? (
-                            <><Avatar name={t.assignee.user.name} size={18} /><span className="text-[10px] text-text-muted">{t.assignee.user.name.split(" ")[0]}</span></>
-                          ) : (
-                            <span className="text-[10px] text-text-muted italic">Unassigned</span>
-                          )}
-                        </div>
+                        {t.assignee ? (
+                          <div className="flex items-center gap-1.5"><Avatar name={t.assignee.user.name} size={18} /><span className="text-[10px] text-text-muted">{t.assignee.user.name.split(" ")[0]}</span></div>
+                        ) : <span className="text-[10px] text-text-muted italic">Unassigned</span>}
                         <Badge label={t.priority} />
                       </div>
-                      <button onClick={() => setTaskForDiscussion(t)}
-                        className="text-[10px] text-text-muted hover:text-accent transition-colors flex items-center gap-1 mt-1">
+                      <button onClick={() => setTaskForDiscussion(t)} className="text-[10px] text-text-muted hover:text-accent transition-colors flex items-center gap-1 mt-1">
                         💬 {t._count?.comments || 0} comments
                       </button>
                       {t.deadline && <div className="text-[10px] text-text-muted mt-1">📅 {new Date(t.deadline).toLocaleDateString()}</div>}
@@ -465,22 +418,14 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Discussion panel */}
-      {taskForDiscussion && (
-        <DiscussionPanel
-          task={taskForDiscussion}
-          currentUser={user}
-          onClose={() => { setTaskForDiscussion(null); fetchTasks(); }}
-        />
-      )}
+      {taskForDiscussion && <DiscussionPanel task={taskForDiscussion} currentUser={user} onClose={() => { setTaskForDiscussion(null); fetchTasks(); }} />}
 
-      {/* Edit modal */}
       {taskToEdit && (
         <div onClick={() => setTaskToEdit(null)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-text-main mb-5">Edit Task</h3>
             <form onSubmit={handleEdit} className="space-y-4">
-              <TaskFormFields form={editForm} setForm={setEditForm} />
+              <TaskFormFields form={editForm} setForm={setEditForm} staff={staff} departments={departments} />
               <div className="flex gap-2.5 pt-1">
                 <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? "Saving…" : "Save Changes"}</button>
                 <button type="button" onClick={() => setTaskToEdit(null)} className="btn-ghost flex-1">Cancel</button>
@@ -490,33 +435,26 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Delete confirm */}
       {taskToDelete && (
         <div onClick={() => setTaskToDelete(null)} className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-sm text-center">
             <div className="text-4xl mb-4">🗑️</div>
             <h3 className="text-lg font-bold text-text-main mb-2">Delete Task?</h3>
-            <p className="text-sm text-text-muted mb-6">
-              Permanently delete <span className="text-text-main font-semibold">"{taskToDelete.title}"</span>? This cannot be undone.
-            </p>
+            <p className="text-sm text-text-muted mb-6">Permanently delete <span className="text-text-main font-semibold">"{taskToDelete.title}"</span>?</p>
             <div className="flex gap-3">
-              <button onClick={handleDelete} disabled={deleting}
-                className="flex-1 py-2.5 rounded-xl bg-danger text-white font-bold text-sm hover:bg-red-600 transition-colors">
-                {deleting ? "Deleting…" : "Yes, Delete"}
-              </button>
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2.5 rounded-xl bg-danger text-white font-bold text-sm hover:bg-red-600 transition-colors">{deleting ? "Deleting…" : "Yes, Delete"}</button>
               <button onClick={() => setTaskToDelete(null)} className="btn-ghost flex-1">Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Create modal */}
       {showCreate && isAdminOrManager && (
         <div onClick={() => setShowCreate(false)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-text-main mb-5">Create New Task</h3>
             <form onSubmit={handleCreate} className="space-y-4">
-              <TaskFormFields form={createForm} setForm={setCreateForm} />
+              <TaskFormFields form={createForm} setForm={setCreateForm} staff={staff} departments={departments} />
               <div className="flex gap-2.5 pt-1">
                 <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? "Creating…" : "Create Task"}</button>
                 <button type="button" onClick={() => setShowCreate(false)} className="btn-ghost flex-1">Cancel</button>
