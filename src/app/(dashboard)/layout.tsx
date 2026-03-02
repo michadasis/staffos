@@ -268,8 +268,6 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
 
   return (
     <header className="h-14 bg-surface border-b border-border flex items-center px-4 md:px-6 gap-3 flex-shrink-0 sticky top-0 z-30">
-      {/* Hamburger — mobile only */}
-      <button onClick={onMenuClick} className="md:hidden text-text-muted hover:text-text-main text-xl w-8 flex items-center justify-center">☰</button>
       {/* Collapse toggle — desktop only */}
       <button onClick={onMenuClick} className="hidden md:flex text-text-muted hover:text-text-main text-lg">☰</button>
       <h2 className="text-[15px] font-bold text-text-main">{pageTitle}</h2>
@@ -307,15 +305,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => { if (!loading && !user) router.push("/login"); }, [user, loading, router]);
 
-  const handleMenuClick = () => {
-    // On mobile: toggle drawer. On desktop: toggle collapse.
-    if (window.innerWidth < 768) setDrawerOpen(true);
-    else setCollapsed((c) => !c);
-  };
+  const handleMenuClick = () => setCollapsed((c) => !c);
 
   if (loading) return (
     <div className="min-h-screen bg-bg flex items-center justify-center">
@@ -332,9 +325,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-
-      {/* Mobile drawer */}
-      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <TopBar onMenuClick={handleMenuClick} />
