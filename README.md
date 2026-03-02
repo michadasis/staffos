@@ -1,6 +1,6 @@
 # StaffOS — Staff Management Platform
 
-A full-stack staff management system built with **Next.js 14**, **Tailwind CSS**, **Prisma ORM**, and **MySQL**.
+A full stack staff management system built with **Next.js 14**, **Tailwind CSS**, **Prisma ORM**, and **MySQL**.
 
 ---
 
@@ -143,7 +143,7 @@ prisma/
 | Task               | Tasks with status, priority, dates |
 | TaskComment        | Comments on tasks                  |
 | Message            | Direct messages between users      |
-| ActivityLog        | Per-employee activity history      |
+| ActivityLog        | Per employee activity history      |
 | PerformanceReport  | Monthly performance snapshots      |
 | AuditLog           | Security audit trail               |
 | Document           | Employee document storage          |
@@ -167,7 +167,7 @@ npm run dev          # Start dev server
 npm run build        # Production build
 npm run db:studio    # Open Prisma Studio (DB GUI)
 npm run db:migrate   # Run migrations (production)
-npm run db:seed      # Re-seed demo data
+npm run db:seed      # Reseed demo data
 ```
 
 ---
