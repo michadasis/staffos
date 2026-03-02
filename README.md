@@ -1,10 +1,10 @@
-# ⚡ StaffOS — Staff Management Platform
+# StaffOS — Staff Management Platform
 
 A full-stack staff management system built with **Next.js 14**, **Tailwind CSS**, **Prisma ORM**, and **MySQL**.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Node.js 18+
@@ -79,7 +79,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 🔑 Demo Accounts
+## Demo Accounts
 
 | Role  | Email                   | Password    |
 |-------|-------------------------|-------------|
@@ -91,7 +91,7 @@ All staff accounts share `Staff@123` as password.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/
@@ -133,7 +133,7 @@ prisma/
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema
 
 | Table              | Description                        |
 |--------------------|------------------------------------|
@@ -150,7 +150,7 @@ prisma/
 
 ---
 
-## 🔐 Auth Flow
+## Auth Flow
 
 - **JWT** stored in an `httpOnly` cookie (`staffos_token`)
 - **Next.js middleware** protects all dashboard routes
@@ -160,7 +160,7 @@ prisma/
 
 ---
 
-## 🔧 Useful Commands
+## Useful Commands
 
 ```bash
 npm run dev          # Start dev server
@@ -172,25 +172,10 @@ npm run db:seed      # Re-seed demo data
 
 ---
 
-## 🌐 Production Deployment
+## Production Deployment
 
 1. Set `DATABASE_URL` to your production MySQL URL
 2. Set a strong `JWT_SECRET` (64+ random chars)
 3. Run `npm run db:migrate` (not db:push) in production
-4. Deploy to Vercel, Railway, or any Node.js host
 
 ---
-
-## ✨ Features
-
-- ✅ JWT authentication with httpOnly cookies
-- ✅ Role-based access control (Admin / Manager / Staff)
-- ✅ Full CRUD for staff, tasks, departments
-- ✅ Task management with Kanban board view
-- ✅ Internal messaging system
-- ✅ Dashboard with real-time stats from DB
-- ✅ Performance analytics
-- ✅ CSV report export
-- ✅ Audit logging
-- ✅ Responsive design (mobile + desktop)
-- ✅ Dark theme throughout
