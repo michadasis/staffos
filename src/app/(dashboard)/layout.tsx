@@ -13,6 +13,8 @@ const NAV_ALL = [
   { href: "/performance", icon: "📊", label: "Performance", roles: ["ADMIN", "MANAGER"] },
   { href: "/messages", icon: "💬", label: "Messages", roles: ["ADMIN", "MANAGER", "STAFF"] },
   { href: "/reports", icon: "📈", label: "Reports", roles: ["ADMIN", "MANAGER"] },
+  { href: "/audit-logs", icon: "🔍", label: "Audit Logs", roles: ["ADMIN", "MANAGER"] },
+  { href: "/backup", icon: "💾", label: "Backup", roles: ["ADMIN"] },
   { href: "/settings", icon: "⚙️", label: "Settings", roles: ["ADMIN", "MANAGER", "STAFF"] },
 ];
 

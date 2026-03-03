@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
   // Admins and managers can change directly
   if (["ADMIN", "MANAGER"].includes(payload.role)) {
     await prisma.user.update({ where: { id: payload.userId }, data: { email: emailLower } });
+    await prisma.auditLog.create({
+      data: { userId: payload.userId, action: "EMAIL_CHANGED", entity: "User", entityId: payload.userId },
+    });
     return ok({ message: "Email updated successfully", applied: true });
   }
 
@@ -84,9 +87,15 @@ export async function PATCH(req: NextRequest) {
     }
     await prisma.user.update({ where: { id: request.userId }, data: { email: request.newEmail } });
     await prisma.emailChangeRequest.update({ where: { id: requestId }, data: { status: "APPROVED", resolvedAt: new Date() } });
+    await prisma.auditLog.create({
+      data: { userId: payload.userId, action: "APPROVE_EMAIL_CHANGE", entity: "EmailChangeRequest", entityId: requestId },
+    });
     return ok({ message: "Email change approved" });
   } else {
     await prisma.emailChangeRequest.update({ where: { id: requestId }, data: { status: "REJECTED", resolvedAt: new Date() } });
+    await prisma.auditLog.create({
+      data: { userId: payload.userId, action: "REJECT_EMAIL_CHANGE", entity: "EmailChangeRequest", entityId: requestId },
+    });
     return ok({ message: "Email change rejected" });
   }
 }

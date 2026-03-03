@@ -63,6 +63,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     },
     include: { employee: { include: { department: true } } },
   });
+  await prisma.auditLog.create({
+    data: { userId: payload.userId, action: "UPDATE_STAFF", entity: "User", entityId: userId, after: body },
+  });
   return ok(user);
 }
 
@@ -109,6 +112,9 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       await tx.user.delete({ where: { id: userId } });
     });
 
+    await prisma.auditLog.create({
+      data: { userId: payload.userId, action: "DELETE_STAFF", entity: "User", entityId: userId },
+    });
     return ok({ message: "Employee deleted successfully" });
   } catch (e: any) {
     console.error("Delete error:", e);

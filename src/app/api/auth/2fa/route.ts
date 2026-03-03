@@ -57,11 +57,10 @@ export async function POST(req: NextRequest) {
 
   if (!valid) return err("Invalid code. Please try again.");
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { twoFactorEnabled: true },
+  await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: true } });
+  await prisma.auditLog.create({
+    data: { userId: user.id, action: "ENABLE_2FA", entity: "User", entityId: user.id },
   });
-
   return ok({ message: "2FA enabled successfully" });
 }
 
@@ -87,10 +86,9 @@ export async function DELETE(req: NextRequest) {
 
   if (!valid) return err("Invalid code. Please try again.");
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { twoFactorEnabled: false, twoFactorSecret: null },
+  await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: false, twoFactorSecret: null } });
+  await prisma.auditLog.create({
+    data: { userId: user.id, action: "DISABLE_2FA", entity: "User", entityId: user.id },
   });
-
   return ok({ message: "2FA disabled successfully" });
 }
