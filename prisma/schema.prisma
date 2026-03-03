@@ -55,6 +55,7 @@ model User {
 
   employee     Employee?
   auditLogs    AuditLog[]
+  emailChangeRequests EmailChangeRequest[]
   sentMessages    Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
 
@@ -193,4 +194,18 @@ model AuditLog {
 
   @@index([userId])
   @@index([entity])
+}
+
+model EmailChangeRequest {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentEmail String
+  newEmail     String
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  resolvedAt   DateTime?
+
+  @@index([userId])
+  @@index([status])
 }

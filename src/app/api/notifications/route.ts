@@ -14,6 +14,22 @@ export async function GET(req: NextRequest) {
 
   const notifications: any[] = [];
 
+  // Pending email change requests (admin/manager only)
+  if (["ADMIN", "MANAGER"].includes(payload.role)) {
+    const pendingEmails = await prisma.emailChangeRequest.count({ where: { status: "PENDING" } });
+    if (pendingEmails > 0) {
+      notifications.push({
+        id: "pending-email-changes",
+        type: "email",
+        icon: "✉️",
+        text: `${pendingEmails} email change request${pendingEmails > 1 ? "s" : ""} awaiting approval`,
+        time: new Date().toISOString(),
+        read: false,
+        link: "/staff",
+      });
+    }
+  }
+
   // Pending registrations (admin only)
   if (payload.role === "ADMIN") {
     const pendingCount = await prisma.user.count({ where: { status: "PENDING" } });

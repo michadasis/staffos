@@ -44,10 +44,33 @@ export default function StaffPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [emailRequests, setEmailRequests] = useState<any[]>([]);
+  const [resolvingEmailId, setResolvingEmailId] = useState<number | null>(null);
 
   const fetchPending = () => {
     if (!isAdmin) return;
     fetch("/api/staff/pending").then((r) => r.json()).then(({ data }) => setPendingUsers(data || []));
+  };
+
+  const fetchEmailRequests = () => {
+    if (!isAdminOrManager) return;
+    fetch("/api/auth/email-change").then((r) => r.json()).then(({ data }) => setEmailRequests(data || []));
+  };
+
+  const handleEmailRequest = async (requestId: number, action: "approve" | "reject") => {
+    setResolvingEmailId(requestId);
+    try {
+      const res = await fetch("/api/auth/email-change", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, action }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(action === "approve" ? "Email change approved!" : "Email change rejected");
+      fetchEmailRequests();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setResolvingEmailId(null); }
   };
 
   const handleApproval = async (userId: number, action: "approve" | "reject") => {
@@ -83,6 +106,7 @@ export default function StaffPage() {
   useEffect(() => {
     fetch("/api/departments").then((r) => r.json()).then(({ data }) => setDepartments(data || []));
     fetchPending();
+    fetchEmailRequests();
   }, []);
 
   useEffect(() => { fetchStaff(); }, [search, deptFilter]);
@@ -178,6 +202,48 @@ export default function StaffPage() {
           <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Employee</button>
         )}
       </div>
+
+      {/* Pending email change requests — admin/manager */}
+      {isAdminOrManager && emailRequests.length > 0 && (
+        <div className="card border-accent/30 bg-accent/5 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-accent/20 flex items-center gap-2">
+            <span className="text-accent text-base">✉️</span>
+            <span className="text-[13px] font-bold text-text-main">Email Change Requests</span>
+            <span className="ml-1 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full">
+              {emailRequests.length}
+            </span>
+          </div>
+          <div className="divide-y divide-border">
+            {emailRequests.map((r) => (
+              <div key={r.id} className="flex items-center gap-4 px-5 py-3.5 flex-wrap md:flex-nowrap">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-text-main">{r.user.name}</div>
+                  <div className="text-[11px] text-text-muted mt-0.5">
+                    <span className="line-through">{r.currentEmail}</span>
+                    <span className="mx-2 text-accent">→</span>
+                    <span className="text-text-soft font-semibold">{r.newEmail}</span>
+                  </div>
+                  <div className="text-[10px] text-text-muted mt-0.5">Requested {new Date(r.createdAt).toLocaleDateString()}</div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleEmailRequest(r.id, "approve")}
+                    disabled={resolvingEmailId === r.id}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/20 transition-colors disabled:opacity-50">
+                    {resolvingEmailId === r.id ? "…" : "Approve"}
+                  </button>
+                  <button
+                    onClick={() => handleEmailRequest(r.id, "reject")}
+                    disabled={resolvingEmailId === r.id}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 transition-colors disabled:opacity-50">
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pending approvals — admin only */}
       {isAdmin && pendingUsers.length > 0 && (
