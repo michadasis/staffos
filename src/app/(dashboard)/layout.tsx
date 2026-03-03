@@ -159,7 +159,7 @@ function BottomNav() {
   const mobileNav = NAV_ALL.filter((n) => n.roles.includes(role)).slice(0, 5);
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-30 flex">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-30 flex" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       {mobileNav.map((n) => {
         const active = pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href));
         return (
@@ -261,41 +261,6 @@ function NotificationBell() {
   );
 }
 
-function MobileProfileMenu({ user }: { user: any }) {
-  const [open, setOpen] = useState(false);
-  const { logout } = useAuth();
-  const router = useRouter();
-
-  return (
-    <div className="relative md:hidden">
-      <button onClick={() => setOpen((o) => !o)}>
-        <Avatar name={user.name} size={32} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 bg-surface border border-border rounded-2xl w-48 z-50 shadow-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
-              <div className="text-[12px] font-bold text-text-main truncate">{user.name}</div>
-              <div className="text-[10px] text-text-muted truncate">{user.email}</div>
-            </div>
-            <button
-              onClick={() => { setOpen(false); router.push("/settings"); }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-soft hover:bg-surface-alt transition-colors border-b border-border">
-              <span>⚙️</span> Settings
-            </button>
-            <button
-              onClick={() => { setOpen(false); logout(); toast.success("Signed out"); }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-danger hover:bg-danger/10 transition-colors">
-              <span>↩</span> Log Out
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
@@ -314,11 +279,13 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           <input placeholder="Quick search…" className="bg-transparent outline-none text-text-main text-xs w-32 placeholder-text-muted" />
         </div>
         <NotificationBell />
-        {/* Desktop: plain avatar. Mobile: avatar opens a small menu */}
+        {/* Desktop: plain avatar. Mobile: avatar taps to settings */}
         {user && (
           <>
             <span className="hidden md:block"><Avatar name={user.name} size={32} /></span>
-            <MobileProfileMenu user={user} />
+            <button className="md:hidden" onClick={() => router.push("/settings")} title="Settings">
+              <Avatar name={user.name} size={32} />
+            </button>
           </>
         )}
       </div>
@@ -370,7 +337,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <TopBar onMenuClick={handleMenuClick} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-bg pb-20 md:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-bg pb-24 md:pb-6">
           <RoleGuard>{children}</RoleGuard>
         </main>
       </div>
