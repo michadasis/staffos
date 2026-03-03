@@ -13,6 +13,12 @@ enum Role {
   STAFF
 }
 
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
 enum EmployeeStatus {
   ACTIVE
   ON_LEAVE
@@ -39,6 +45,7 @@ model User {
   password     String
   name         String
   role         Role     @default(STAFF)
+  status       AccountStatus @default(ACTIVE)
   avatar       String?
   refreshToken String?  @db.Text
   createdAt    DateTime @default(now())

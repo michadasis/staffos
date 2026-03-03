@@ -30,7 +30,7 @@ export default function LoginPage() {
     <div className="w-full max-w-md">
       {/* Logo */}
       <div className="flex items-center gap-3 mb-10 justify-center">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-lg">⚡</div>
+        <img src="/logo.png" alt="StaffOS" className="w-10 h-10 rounded-xl object-cover" />
         <span className="text-2xl font-extrabold tracking-tight text-text-main">StaffOS</span>
       </div>
 
@@ -42,7 +42,7 @@ export default function LoginPage() {
           <div>
             <label className="label">Email Address</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com" className="input" autoComplete="email" required />
+              placeholder="you@company.com" className="input" autoComplete="email" required />
           </div>
 
           <div>
@@ -65,10 +65,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-
       </div>
 
-      
+      <p className="text-center text-sm text-text-muted mt-6">
+        Need an account?{" "}
+        <Link href="/register" className="text-accent hover:underline font-medium">Register here</Link>
+      </p>
     </div>
   );
 }

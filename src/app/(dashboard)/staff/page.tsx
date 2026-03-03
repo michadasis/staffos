@@ -42,6 +42,33 @@ export default function StaffPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+
+  const fetchPending = () => {
+    if (!isAdmin) return;
+    fetch("/api/staff/pending").then((r) => r.json()).then(({ data }) => setPendingUsers(data || []));
+  };
+
+  const handleApproval = async (userId: number, action: "approve" | "reject") => {
+    setApprovingId(userId);
+    try {
+      const res = await fetch("/api/staff/pending", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(action === "approve" ? "User approved!" : "User rejected");
+      fetchPending();
+      fetchStaff();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   const fetchStaff = () => {
     const params = new URLSearchParams();
@@ -55,6 +82,7 @@ export default function StaffPage() {
 
   useEffect(() => {
     fetch("/api/departments").then((r) => r.json()).then(({ data }) => setDepartments(data || []));
+    fetchPending();
   }, []);
 
   useEffect(() => { fetchStaff(); }, [search, deptFilter]);
@@ -150,6 +178,46 @@ export default function StaffPage() {
           <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Employee</button>
         )}
       </div>
+
+      {/* Pending approvals — admin only */}
+      {isAdmin && pendingUsers.length > 0 && (
+        <div className="card border-warning/30 bg-warning/5 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-warning/20 flex items-center gap-2">
+            <span className="text-warning text-base">⏳</span>
+            <span className="text-[13px] font-bold text-text-main">Pending Approvals</span>
+            <span className="ml-1 text-[10px] font-bold text-warning bg-warning/10 border border-warning/20 px-2 py-0.5 rounded-full">
+              {pendingUsers.length}
+            </span>
+          </div>
+          <div className="divide-y divide-border">
+            {pendingUsers.map((u) => (
+              <div key={u.id} className="flex items-center gap-4 px-5 py-3.5">
+                <div className="w-8 h-8 rounded-full bg-warning/20 border border-warning/30 flex items-center justify-center text-[11px] font-bold text-warning flex-shrink-0">
+                  {u.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-text-main">{u.name}</div>
+                  <div className="text-[11px] text-text-muted">{u.email} · Registered {new Date(u.createdAt).toLocaleDateString()}</div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleApproval(u.id, "approve")}
+                    disabled={approvingId === u.id}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/20 transition-colors disabled:opacity-50">
+                    {approvingId === u.id ? "…" : "Approve"}
+                  </button>
+                  <button
+                    onClick={() => handleApproval(u.id, "reject")}
+                    disabled={approvingId === u.id}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 transition-colors disabled:opacity-50">
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2.5 flex-wrap">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search staff…" className="input w-52 text-sm" />

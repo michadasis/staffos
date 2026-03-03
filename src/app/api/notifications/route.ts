@@ -14,6 +14,22 @@ export async function GET(req: NextRequest) {
 
   const notifications: any[] = [];
 
+  // Pending registrations (admin only)
+  if (payload.role === "ADMIN") {
+    const pendingCount = await prisma.user.count({ where: { status: "PENDING" } });
+    if (pendingCount > 0) {
+      notifications.push({
+        id: `pending-registrations`,
+        type: "pending",
+        icon: "⏳",
+        text: `${pendingCount} registration${pendingCount > 1 ? "s" : ""} awaiting your approval`,
+        time: new Date().toISOString(),
+        read: false,
+        link: "/staff",
+      });
+    }
+  }
+
   // Unread messages
   const unreadMessages = await prisma.message.findMany({
     where: { receiverId: payload.userId, read: false },
