@@ -42,22 +42,32 @@ export default function StaffPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [profileTab, setProfileTab] = useState<"info"|"documents">("info");
-  const [documents, setDocuments] = useState<any[]>([]);
-  const [docsLoading, setDocsLoading] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [deletingDocId, setDeletingDocId] = useState<number|null>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
+
+  // document state
   const [profileTab, setProfileTab] = useState<"info" | "documents">("info");
   const [documents, setDocuments] = useState<any[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+
+  // approval state
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [emailRequests, setEmailRequests] = useState<any[]>([]);
   const [resolvingEmailId, setResolvingEmailId] = useState<number | null>(null);
+
+  // ── data fetching ──────────────────────────────────────────────────────────
+
+  const fetchStaff = () => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (deptFilter !== "All") params.set("department", deptFilter);
+    fetch(`/api/staff?${params}`)
+      .then((r) => r.json())
+      .then(({ data }) => setStaff(data || []))
+      .finally(() => setLoading(false));
+  };
 
   const fetchPending = () => {
     if (!isAdmin) return;
@@ -79,69 +89,15 @@ export default function StaffPage() {
     finally { setDocsLoading(false); }
   };
 
-  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selected?.employee?.id) return;
-    if (file.size > 10 * 1024 * 1024) { toast.error("File too large. Max 10MB."); return; }
-    setUploadingDoc(true);
-    try {
-      const base64 = await new Promise<string>((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res((reader.result as string).split(",")[1]);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const docType = file.name.toLowerCase().includes("contract") ? "Contract"
-        : file.name.toLowerCase().includes("id") ? "ID"
-        : file.name.toLowerCase().includes("cv") || file.name.toLowerCase().includes("resume") ? "CV"
-        : file.name.toLowerCase().includes("cert") ? "Certificate"
-        : "Other";
+  useEffect(() => {
+    fetch("/api/departments").then((r) => r.json()).then(({ data }) => setDepartments(data || []));
+    fetchPending();
+    fetchEmailRequests();
+  }, []);
 
-      const res = await fetch("/api/staff/documents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId: selected.employee.id, name: file.name, type: docType, fileData: base64, fileType: file.type }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      toast.success("Document uploaded!");
-      fetchDocuments(selected.employee.id);
-    } catch (err: any) { toast.error(err.message); }
-    finally { setUploadingDoc(false); if (docInputRef.current) docInputRef.current.value = ""; }
-  };
+  useEffect(() => { fetchStaff(); }, [search, deptFilter]);
 
-  const handleDocDelete = async (docId: number) => {
-    setDeletingDocId(docId);
-    try {
-      const res = await fetch(`/api/staff/documents?docId=${docId}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      toast.success("Document deleted");
-      setDocuments((d) => d.filter((x) => x.id !== docId));
-    } catch (err: any) { toast.error(err.message); }
-    finally { setDeletingDocId(null); }
-  };
-
-  const downloadDoc = (doc: any) => {
-    const byteChars = atob(doc.url);
-    const byteArr = new Uint8Array(byteChars.length);
-    for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-    const blob = new Blob([byteArr]);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = doc.name; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const fetchDocuments = async (employeeId: number) => {
-    setDocsLoading(true);
-    try {
-      const res = await fetch(`/api/staff/documents?employeeId=${employeeId}`);
-      const json = await res.json();
-      setDocuments(json.data || []);
-    } catch { setDocuments([]); }
-    finally { setDocsLoading(false); }
-  };
+  // ── document handlers ──────────────────────────────────────────────────────
 
   const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -155,10 +111,11 @@ export default function StaffPage() {
         reader.onerror = rej;
         reader.readAsDataURL(file);
       });
-      const docType = /contract/i.test(file.name) ? "Contract"
-        : /\bid\b/i.test(file.name) ? "ID"
-        : /cv|resume/i.test(file.name) ? "CV"
-        : /cert/i.test(file.name) ? "Certificate"
+      const n = file.name.toLowerCase();
+      const docType = /contract/.test(n) ? "Contract"
+        : /\bid\b/.test(n) ? "ID"
+        : /cv|resume/.test(n) ? "CV"
+        : /cert/.test(n) ? "Certificate"
         : "Other";
       const res = await fetch("/api/staff/documents", {
         method: "POST",
@@ -199,61 +156,10 @@ export default function StaffPage() {
     } catch { toast.error("Failed to download document"); }
   };
 
-  const formatBytes = (b: number) => b < 1024 ? `${b}B` : b < 1048576 ? `${(b/1024).toFixed(1)}KB` : `${(b/1048576).toFixed(1)}MB`;
+  const formatBytes = (b: number) =>
+    b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(1)}KB` : `${(b / 1048576).toFixed(1)}MB`;
 
-  const handleEmailRequest = async (requestId: number, action: "approve" | "reject") => {
-    setResolvingEmailId(requestId);
-    try {
-      const res = await fetch("/api/auth/email-change", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, action }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      toast.success(action === "approve" ? "Email change approved!" : "Email change rejected");
-      fetchEmailRequests();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setResolvingEmailId(null); }
-  };
-
-  const handleApproval = async (userId: number, action: "approve" | "reject") => {
-    setApprovingId(userId);
-    try {
-      const res = await fetch("/api/staff/pending", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, action }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      toast.success(action === "approve" ? "User approved!" : "User rejected");
-      fetchPending();
-      fetchStaff();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setApprovingId(null);
-    }
-  };
-
-  const fetchStaff = () => {
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (deptFilter !== "All") params.set("department", deptFilter);
-    fetch(`/api/staff?${params}`)
-      .then((r) => r.json())
-      .then(({ data }) => setStaff(data || []))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetch("/api/departments").then((r) => r.json()).then(({ data }) => setDepartments(data || []));
-    fetchPending();
-    fetchEmailRequests();
-  }, []);
-
-  useEffect(() => { fetchStaff(); }, [search, deptFilter]);
+  // ── staff handlers ─────────────────────────────────────────────────────────
 
   const openEdit = (s: any) => {
     setEditForm({
@@ -288,11 +194,8 @@ export default function StaffPage() {
       setEditing(false);
       setSelected(null);
       fetchStaff();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -306,11 +209,8 @@ export default function StaffPage() {
       setShowDeleteConfirm(false);
       setSelected(null);
       fetchStaff();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setDeleting(false);
-    }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setDeleting(false); }
   };
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -328,14 +228,45 @@ export default function StaffPage() {
       setShowAdd(false);
       setAddForm({ name: "", email: "", password: "", role: "STAFF", departmentId: "", jobTitle: "" });
       fetchStaff();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleApproval = async (userId: number, action: "approve" | "reject") => {
+    setApprovingId(userId);
+    try {
+      const res = await fetch("/api/staff/pending", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(action === "approve" ? "User approved!" : "User rejected");
+      fetchPending(); fetchStaff();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setApprovingId(null); }
+  };
+
+  const handleEmailRequest = async (requestId: number, action: "approve" | "reject") => {
+    setResolvingEmailId(requestId);
+    try {
+      const res = await fetch("/api/auth/email-change", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, action }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(action === "approve" ? "Email change approved!" : "Email change rejected");
+      fetchEmailRequests();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setResolvingEmailId(null); }
   };
 
   const depts = ["All", ...departments.map((d: any) => d.name)];
+
+  // ── render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="max-w-7xl space-y-5">
@@ -349,15 +280,13 @@ export default function StaffPage() {
         )}
       </div>
 
-      {/* Pending email change requests — admin/manager */}
+      {/* Email change requests */}
       {isAdminOrManager && emailRequests.length > 0 && (
         <div className="card border-accent/30 bg-accent/5 overflow-hidden">
           <div className="px-5 py-3.5 border-b border-accent/20 flex items-center gap-2">
             <span className="text-accent text-base">✉️</span>
             <span className="text-[13px] font-bold text-text-main">Email Change Requests</span>
-            <span className="ml-1 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full">
-              {emailRequests.length}
-            </span>
+            <span className="ml-1 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full">{emailRequests.length}</span>
           </div>
           <div className="divide-y divide-border">
             {emailRequests.map((r) => (
@@ -372,15 +301,11 @@ export default function StaffPage() {
                   <div className="text-[10px] text-text-muted mt-0.5">Requested {new Date(r.createdAt).toLocaleDateString()}</div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleEmailRequest(r.id, "approve")}
-                    disabled={resolvingEmailId === r.id}
+                  <button onClick={() => handleEmailRequest(r.id, "approve")} disabled={resolvingEmailId === r.id}
                     className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/20 transition-colors disabled:opacity-50">
                     {resolvingEmailId === r.id ? "…" : "Approve"}
                   </button>
-                  <button
-                    onClick={() => handleEmailRequest(r.id, "reject")}
-                    disabled={resolvingEmailId === r.id}
+                  <button onClick={() => handleEmailRequest(r.id, "reject")} disabled={resolvingEmailId === r.id}
                     className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 transition-colors disabled:opacity-50">
                     Reject
                   </button>
@@ -391,15 +316,13 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* Pending approvals — admin only */}
+      {/* Pending approvals */}
       {isAdmin && pendingUsers.length > 0 && (
         <div className="card border-warning/30 bg-warning/5 overflow-hidden">
           <div className="px-5 py-3.5 border-b border-warning/20 flex items-center gap-2">
             <span className="text-warning text-base">⏳</span>
             <span className="text-[13px] font-bold text-text-main">Pending Approvals</span>
-            <span className="ml-1 text-[10px] font-bold text-warning bg-warning/10 border border-warning/20 px-2 py-0.5 rounded-full">
-              {pendingUsers.length}
-            </span>
+            <span className="ml-1 text-[10px] font-bold text-warning bg-warning/10 border border-warning/20 px-2 py-0.5 rounded-full">{pendingUsers.length}</span>
           </div>
           <div className="divide-y divide-border">
             {pendingUsers.map((u) => (
@@ -412,15 +335,11 @@ export default function StaffPage() {
                   <div className="text-[11px] text-text-muted">{u.email} · Registered {new Date(u.createdAt).toLocaleDateString()}</div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleApproval(u.id, "approve")}
-                    disabled={approvingId === u.id}
+                  <button onClick={() => handleApproval(u.id, "approve")} disabled={approvingId === u.id}
                     className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/20 transition-colors disabled:opacity-50">
                     {approvingId === u.id ? "…" : "Approve"}
                   </button>
-                  <button
-                    onClick={() => handleApproval(u.id, "reject")}
-                    disabled={approvingId === u.id}
+                  <button onClick={() => handleApproval(u.id, "reject")} disabled={approvingId === u.id}
                     className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 transition-colors disabled:opacity-50">
                     Reject
                   </button>
@@ -431,6 +350,7 @@ export default function StaffPage() {
         </div>
       )}
 
+      {/* Filters */}
       <div className="flex gap-2.5 flex-wrap">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search staff…" className="input w-52 text-sm" />
         {depts.map((d) => (
@@ -442,6 +362,7 @@ export default function StaffPage() {
         ))}
       </div>
 
+      {/* Staff grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => <div key={i} className="card p-5 h-44 animate-pulse bg-surface-alt" />)}
@@ -453,8 +374,10 @@ export default function StaffPage() {
             const colors = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
             const bg = colors[s.name.charCodeAt(0) % colors.length];
             const total = s.employee?._count?.assignedTasks || 0;
+            const completed = s.employee?.assignedTasks?.length || 0;
+            const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
             return (
-              <div key={s.id} onClick={() => { setSelected(s); setEditing(false); }}
+              <div key={s.id} onClick={() => { setSelected(s); setEditing(false); setProfileTab("info"); }}
                 className="card p-5 cursor-pointer hover:border-accent/40 hover:-translate-y-0.5 transition-all duration-200">
                 <div className="flex items-center gap-3 mb-3.5">
                   <div style={{ background: bg }} className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0 font-mono">
@@ -470,32 +393,30 @@ export default function StaffPage() {
                   <Badge label={s.employee?.status || "ACTIVE"} type="status" />
                 </div>
                 <div className="text-[11px] text-text-muted mb-2.5">🏢 {s.employee?.department?.name || "—"}</div>
-                {total > 0 && (() => {
-                    const completed = s.employee?.assignedTasks?.length || 0;
-                    const rate = Math.round((completed / total) * 100);
-                    return (
-                      <div>
-                        <div className="flex justify-between text-[10px] text-text-muted mb-1">
-                          <span>Tasks</span>
-                          <span className="font-mono text-text-main">{completed}/{total}</span>
-                        </div>
-                        <div className="h-1 bg-border rounded-full">
-                          <div className="h-full bg-accent rounded-full" style={{ width: `${rate}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })()}
+                {s.employee?.supervisor && (
+                  <div className="text-[11px] text-text-muted mb-2.5">👤 {s.employee.supervisor.user?.name}</div>
+                )}
+                {total > 0 && (
+                  <div>
+                    <div className="flex justify-between text-[10px] text-text-muted mb-1">
+                      <span>Tasks</span>
+                      <span className="font-mono text-text-main">{completed}/{total}</span>
+                    </div>
+                    <div className="h-1 bg-border rounded-full">
+                      <div className="h-full bg-accent rounded-full" style={{ width: `${rate}%` }} />
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Detail modal — tabbed */}
+      {/* Detail modal */}
       {selected && !editing && (
         <div onClick={() => { setSelected(null); setProfileTab("info"); }} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header */}
             <div className="p-6 pb-0">
               <div className="flex gap-4 mb-4">
                 <div className="w-14 h-14 rounded-full bg-accent flex items-center justify-center text-lg font-bold text-white font-mono flex-shrink-0">
@@ -510,11 +431,10 @@ export default function StaffPage() {
                   </div>
                 </div>
               </div>
-              {/* Tabs */}
-              <div className="flex gap-0 border-b border-border">
-                {(["info","documents"] as const).map((t) => (
+              <div className="flex border-b border-border">
+                {(["info", "documents"] as const).map((t) => (
                   <button key={t} onClick={() => { setProfileTab(t); if (t === "documents" && selected.employee?.id) fetchDocuments(selected.employee.id); }}
-                    className={`text-[12px] font-semibold px-4 py-2.5 capitalize border-b-2 transition-colors -mb-px
+                    className={`text-[12px] font-semibold px-4 py-2.5 border-b-2 transition-colors -mb-px
                       ${profileTab === t ? "border-accent text-accent" : "border-transparent text-text-muted hover:text-text-soft"}`}>
                     {t === "info" ? "Profile" : "Documents"}
                   </button>
@@ -522,18 +442,16 @@ export default function StaffPage() {
               </div>
             </div>
 
-            {/* Tab content */}
             <div className="flex-1 overflow-y-auto p-6 pt-4">
-
               {profileTab === "info" && (
-                <div className="space-y-0">
+                <div>
                   {[
-                    ["Department",  selected.employee?.department?.name || "—"],
-                    ["Job Title",   selected.employee?.jobTitle || "—"],
-                    ["Phone",       selected.employee?.phone || "—"],
-                    ["Address",     selected.employee?.address || "—"],
-                    ["Supervisor",  selected.employee?.supervisor?.user?.name || "—"],
-                    ["Joined",      selected.employee?.joinDate ? new Date(selected.employee.joinDate).toLocaleDateString() : "—"],
+                    ["Department", selected.employee?.department?.name || "—"],
+                    ["Job Title",  selected.employee?.jobTitle || "—"],
+                    ["Phone",      selected.employee?.phone || "—"],
+                    ["Address",    selected.employee?.address || "—"],
+                    ["Supervisor", selected.employee?.supervisor?.user?.name || "—"],
+                    ["Joined",     selected.employee?.joinDate ? new Date(selected.employee.joinDate).toLocaleDateString() : "—"],
                   ].map(([l, v]) => (
                     <div key={l} className="flex justify-between py-2.5 border-b border-border text-sm">
                       <span className="text-text-muted">{l}</span>
@@ -556,16 +474,15 @@ export default function StaffPage() {
                       <p className="text-[10px] text-text-muted mt-1.5 text-center">PDF, Word, images, Excel, ZIP — max 10MB</p>
                     </div>
                   )}
-
                   {docsLoading ? (
-                    <div className="space-y-2">{[...Array(3)].map((_,i) => <div key={i} className="h-14 rounded-xl bg-surface-alt animate-pulse" />)}</div>
+                    <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-surface-alt animate-pulse" />)}</div>
                   ) : documents.length === 0 ? (
                     <div className="text-center py-8 text-text-muted text-[12px]">No documents uploaded yet</div>
                   ) : (
                     <div className="space-y-2">
                       {documents.map((doc) => {
                         const ext = doc.name.split(".").pop()?.toLowerCase() || "";
-                        const icon = ["pdf"].includes(ext) ? "📄"
+                        const icon = ext === "pdf" ? "📄"
                           : ["doc","docx"].includes(ext) ? "📝"
                           : ["jpg","jpeg","png","gif","webp"].includes(ext) ? "🖼"
                           : ["xlsx","xls","csv"].includes(ext) ? "📊"
@@ -576,7 +493,7 @@ export default function StaffPage() {
                             <span className="text-xl flex-shrink-0">{icon}</span>
                             <div className="flex-1 min-w-0">
                               <div className="text-[12px] font-semibold text-text-main truncate">{doc.name}</div>
-                              <div className="flex gap-2 mt-0.5">
+                              <div className="flex gap-2 mt-0.5 flex-wrap">
                                 <span className="text-[10px] text-accent bg-accent/10 border border-accent/20 rounded-full px-1.5 py-0.5 font-semibold">{doc.type}</span>
                                 <span className="text-[10px] text-text-muted">{formatBytes(doc.size || 0)}</span>
                                 <span className="text-[10px] text-text-muted">{new Date(doc.uploadedAt).toLocaleDateString()}</span>
@@ -603,11 +520,8 @@ export default function StaffPage() {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="p-6 pt-0 border-t border-border flex gap-2.5 mt-2">
-              {isAdminOrManager && (
-                <button onClick={() => openEdit(selected)} className="btn-primary flex-1">Edit</button>
-              )}
+            <div className="p-6 pt-3 border-t border-border flex gap-2.5">
+              {isAdminOrManager && <button onClick={() => openEdit(selected)} className="btn-primary flex-1">Edit</button>}
               {isAdmin && (
                 <button onClick={() => setShowDeleteConfirm(true)}
                   className="flex-1 py-2.5 px-4 rounded-xl border border-danger/40 bg-danger/10 text-danger text-sm font-semibold hover:bg-danger/20 transition-colors">
@@ -620,7 +534,7 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* Edit form modal */}
+      {/* Edit modal */}
       {selected && editing && (
         <div onClick={() => setEditing(false)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -646,6 +560,17 @@ export default function StaffPage() {
                 </select>
               </div>
               <div>
+                <label className="label">Supervisor</label>
+                <select value={editForm.supervisorId} onChange={(e) => setEditForm({ ...editForm, supervisorId: e.target.value })} className="input">
+                  <option value="">No supervisor</option>
+                  {staff.filter((s: any) => s.id !== selected?.id && s.employee?.id).map((s: any) => (
+                    <option key={s.employee.id} value={s.employee.id}>
+                      {s.name}{s.employee?.jobTitle ? ` — ${s.employee.jobTitle}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="label">Status</label>
                 <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="input">
                   <option value="ACTIVE">Active</option>
@@ -664,15 +589,6 @@ export default function StaffPage() {
                 </div>
               )}
               <div>
-                <label className="label">Supervisor</label>
-                <select value={editForm.supervisorId} onChange={(e) => setEditForm({ ...editForm, supervisorId: e.target.value })} className="input">
-                  <option value="">No supervisor</option>
-                  {staff.filter((s: any) => s.id !== selected?.id).map((s: any) => (
-                    <option key={s.employee?.id} value={s.employee?.id}>{s.name} {s.employee?.jobTitle ? `— ${s.employee.jobTitle}` : ""}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="label">Address</label>
                 <input type="text" value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} className="input" placeholder="123 Main St" />
               </div>
@@ -685,7 +601,7 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* Delete confirm modal */}
+      {/* Delete confirm */}
       {showDeleteConfirm && selected && (
         <div onClick={() => setShowDeleteConfirm(false)} className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-sm text-center">
@@ -711,7 +627,7 @@ export default function StaffPage() {
           <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-md">
             <h3 className="text-lg font-bold text-text-main mb-5">Add New Employee</h3>
             <form onSubmit={handleAdd} className="space-y-4">
-              {[["Full Name", "name", "text"], ["Email Address", "email", "email"], ["Password", "password", "password"], ["Job Title", "jobTitle", "text"]].map(([l, k, t]) => (
+              {[["Full Name","name","text"],["Email Address","email","email"],["Password","password","password"],["Job Title","jobTitle","text"]].map(([l,k,t]) => (
                 <div key={k}>
                   <label className="label">{l}</label>
                   <input type={t} value={(addForm as any)[k]} onChange={(e) => setAddForm({ ...addForm, [k]: e.target.value })} className="input" required={k !== "jobTitle"} />
