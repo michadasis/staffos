@@ -32,7 +32,7 @@ function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   );
 }
 
-// ⚠️ CRITICAL: TaskFormFields must be defined OUTSIDE the page component
+// CRITICAL: TaskFormFields must be defined OUTSIDE the page component
 // to prevent React from unmounting inputs on every keystroke
 function TaskFormFields({ form, setForm, staff, departments }: {
   form: any; setForm: (f: any) => void; staff: any[]; departments: any[];
@@ -239,10 +239,10 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
                       isImage ? (
                         <div className="mt-1">
                           <img
-                            src={}
+                            src={`data:${c.fileType};base64,${c.fileData}`}
                             alt={c.fileName}
                             className="max-w-full max-h-48 rounded-xl border border-border cursor-pointer hover:opacity-90 transition-opacity object-cover"
-                            onClick={() => setPreviewImg()}
+                            onClick={() => setPreviewImg(`data:${c.fileType};base64,${c.fileData}`)}
                           />
                           <button
                             onClick={() => downloadFile(c.fileName, c.fileType, c.fileData)}
