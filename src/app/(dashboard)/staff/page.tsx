@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import toast from "react-hot-toast";
 
@@ -42,6 +42,18 @@ export default function StaffPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [profileTab, setProfileTab] = useState<"info"|"documents">("info");
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<number|null>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [profileTab, setProfileTab] = useState<"info" | "documents">("info");
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [emailRequests, setEmailRequests] = useState<any[]>([]);
@@ -56,6 +68,138 @@ export default function StaffPage() {
     if (!isAdminOrManager) return;
     fetch("/api/auth/email-change").then((r) => r.json()).then(({ data }) => setEmailRequests(data || []));
   };
+
+  const fetchDocuments = async (employeeId: number) => {
+    setDocsLoading(true);
+    try {
+      const res = await fetch(`/api/staff/documents?employeeId=${employeeId}`);
+      const json = await res.json();
+      setDocuments(json.data || []);
+    } catch { setDocuments([]); }
+    finally { setDocsLoading(false); }
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selected?.employee?.id) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("File too large. Max 10MB."); return; }
+    setUploadingDoc(true);
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res((reader.result as string).split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const docType = file.name.toLowerCase().includes("contract") ? "Contract"
+        : file.name.toLowerCase().includes("id") ? "ID"
+        : file.name.toLowerCase().includes("cv") || file.name.toLowerCase().includes("resume") ? "CV"
+        : file.name.toLowerCase().includes("cert") ? "Certificate"
+        : "Other";
+
+      const res = await fetch("/api/staff/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: selected.employee.id, name: file.name, type: docType, fileData: base64, fileType: file.type }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Document uploaded!");
+      fetchDocuments(selected.employee.id);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setUploadingDoc(false); if (docInputRef.current) docInputRef.current.value = ""; }
+  };
+
+  const handleDocDelete = async (docId: number) => {
+    setDeletingDocId(docId);
+    try {
+      const res = await fetch(`/api/staff/documents?docId=${docId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Document deleted");
+      setDocuments((d) => d.filter((x) => x.id !== docId));
+    } catch (err: any) { toast.error(err.message); }
+    finally { setDeletingDocId(null); }
+  };
+
+  const downloadDoc = (doc: any) => {
+    const byteChars = atob(doc.url);
+    const byteArr = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([byteArr]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = doc.name; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const fetchDocuments = async (employeeId: number) => {
+    setDocsLoading(true);
+    try {
+      const res = await fetch(`/api/staff/documents?employeeId=${employeeId}`);
+      const json = await res.json();
+      setDocuments(json.data || []);
+    } catch { setDocuments([]); }
+    finally { setDocsLoading(false); }
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selected?.employee?.id) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("File too large. Max 10MB."); return; }
+    setUploadingDoc(true);
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res((reader.result as string).split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const docType = /contract/i.test(file.name) ? "Contract"
+        : /\bid\b/i.test(file.name) ? "ID"
+        : /cv|resume/i.test(file.name) ? "CV"
+        : /cert/i.test(file.name) ? "Certificate"
+        : "Other";
+      const res = await fetch("/api/staff/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: selected.employee.id, name: file.name, type: docType, fileData: base64, fileType: file.type }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Document uploaded!");
+      fetchDocuments(selected.employee.id);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setUploadingDoc(false); if (docInputRef.current) docInputRef.current.value = ""; }
+  };
+
+  const handleDocDelete = async (docId: number) => {
+    if (!confirm("Delete this document?")) return;
+    setDeletingDocId(docId);
+    try {
+      const res = await fetch(`/api/staff/documents?docId=${docId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Document deleted");
+      setDocuments((d) => d.filter((x) => x.id !== docId));
+    } catch (err: any) { toast.error(err.message); }
+    finally { setDeletingDocId(null); }
+  };
+
+  const downloadDoc = (doc: any) => {
+    try {
+      const byteChars = atob(doc.url);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = doc.name; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Failed to download document"); }
+  };
+
+  const formatBytes = (b: number) => b < 1024 ? `${b}B` : b < 1048576 ? `${(b/1024).toFixed(1)}KB` : `${(b/1048576).toFixed(1)}MB`;
 
   const handleEmailRequest = async (requestId: number, action: "approve" | "reject") => {
     setResolvingEmailId(requestId);
@@ -120,6 +264,7 @@ export default function StaffPage() {
       address: s.employee?.address || "",
       status: s.employee?.status || "ACTIVE",
       departmentId: s.employee?.department?.id || "",
+      supervisorId: s.employee?.supervisor?.id || "",
     });
     setEditing(true);
   };
@@ -134,6 +279,7 @@ export default function StaffPage() {
         body: JSON.stringify({
           ...editForm,
           departmentId: editForm.departmentId ? parseInt(editForm.departmentId) : null,
+          supervisorId: editForm.supervisorId ? parseInt(editForm.supervisorId) : null,
         }),
       });
       const json = await res.json();
@@ -345,45 +491,130 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* Detail / Edit modal */}
+      {/* Detail modal — tabbed */}
       {selected && !editing && (
-        <div onClick={() => setSelected(null)} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div onClick={(e) => e.stopPropagation()} className="card p-7 w-full max-w-md">
-            <div className="flex gap-4 mb-5">
-              <div className="w-14 h-14 rounded-full bg-accent flex items-center justify-center text-lg font-bold text-white font-mono">
-                {selected.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
-              </div>
-              <div>
-                <div className="text-lg font-bold text-text-main">{selected.name}</div>
-                <div className="text-sm text-text-muted">{selected.email}</div>
-                <div className="flex gap-1.5 mt-2">
-                  <Badge label={selected.role} type="role" />
-                  <Badge label={selected.employee?.status || "ACTIVE"} />
+        <div onClick={() => { setSelected(null); setProfileTab("info"); }} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-6 pb-0">
+              <div className="flex gap-4 mb-4">
+                <div className="w-14 h-14 rounded-full bg-accent flex items-center justify-center text-lg font-bold text-white font-mono flex-shrink-0">
+                  {selected.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[16px] font-bold text-text-main">{selected.name}</div>
+                  <div className="text-[12px] text-text-muted">{selected.email}</div>
+                  <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                    <Badge label={selected.role} type="role" />
+                    <Badge label={selected.employee?.status || "ACTIVE"} type="status" />
+                  </div>
                 </div>
               </div>
-            </div>
-            {[
-              ["Department", selected.employee?.department?.name || "—"],
-              ["Job Title", selected.employee?.jobTitle || "—"],
-              ["Phone", selected.employee?.phone || "—"],
-              ["Joined", selected.employee?.joinDate ? new Date(selected.employee.joinDate).toLocaleDateString() : "—"],
-            ].map(([l, v]) => (
-              <div key={l} className="flex justify-between py-2.5 border-b border-border text-sm">
-                <span className="text-text-muted">{l}</span>
-                <span className="text-text-main font-medium">{v}</span>
+              {/* Tabs */}
+              <div className="flex gap-0 border-b border-border">
+                {(["info","documents"] as const).map((t) => (
+                  <button key={t} onClick={() => { setProfileTab(t); if (t === "documents" && selected.employee?.id) fetchDocuments(selected.employee.id); }}
+                    className={`text-[12px] font-semibold px-4 py-2.5 capitalize border-b-2 transition-colors -mb-px
+                      ${profileTab === t ? "border-accent text-accent" : "border-transparent text-text-muted hover:text-text-soft"}`}>
+                    {t === "info" ? "Profile" : "Documents"}
+                  </button>
+                ))}
               </div>
-            ))}
-            <div className="flex gap-2.5 mt-5">
+            </div>
+
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto p-6 pt-4">
+
+              {profileTab === "info" && (
+                <div className="space-y-0">
+                  {[
+                    ["Department",  selected.employee?.department?.name || "—"],
+                    ["Job Title",   selected.employee?.jobTitle || "—"],
+                    ["Phone",       selected.employee?.phone || "—"],
+                    ["Address",     selected.employee?.address || "—"],
+                    ["Supervisor",  selected.employee?.supervisor?.user?.name || "—"],
+                    ["Joined",      selected.employee?.joinDate ? new Date(selected.employee.joinDate).toLocaleDateString() : "—"],
+                  ].map(([l, v]) => (
+                    <div key={l} className="flex justify-between py-2.5 border-b border-border text-sm">
+                      <span className="text-text-muted">{l}</span>
+                      <span className="text-text-main font-medium">{v as string}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {profileTab === "documents" && (
+                <div className="space-y-3">
+                  {isAdminOrManager && (
+                    <div>
+                      <input ref={docInputRef} type="file" className="hidden" onChange={handleDocUpload}
+                        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.xls,.csv,.txt,.zip" />
+                      <button onClick={() => docInputRef.current?.click()} disabled={uploadingDoc}
+                        className="w-full py-3 rounded-xl border-2 border-dashed border-border hover:border-accent/50 text-text-muted hover:text-accent transition-colors text-[12px] font-semibold disabled:opacity-50">
+                        {uploadingDoc ? "Uploading…" : "+ Upload Document"}
+                      </button>
+                      <p className="text-[10px] text-text-muted mt-1.5 text-center">PDF, Word, images, Excel, ZIP — max 10MB</p>
+                    </div>
+                  )}
+
+                  {docsLoading ? (
+                    <div className="space-y-2">{[...Array(3)].map((_,i) => <div key={i} className="h-14 rounded-xl bg-surface-alt animate-pulse" />)}</div>
+                  ) : documents.length === 0 ? (
+                    <div className="text-center py-8 text-text-muted text-[12px]">No documents uploaded yet</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {documents.map((doc) => {
+                        const ext = doc.name.split(".").pop()?.toLowerCase() || "";
+                        const icon = ["pdf"].includes(ext) ? "📄"
+                          : ["doc","docx"].includes(ext) ? "📝"
+                          : ["jpg","jpeg","png","gif","webp"].includes(ext) ? "🖼"
+                          : ["xlsx","xls","csv"].includes(ext) ? "📊"
+                          : ["zip","rar"].includes(ext) ? "🗜"
+                          : "📎";
+                        return (
+                          <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl bg-surface-alt border border-border hover:border-accent/30 transition-colors">
+                            <span className="text-xl flex-shrink-0">{icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[12px] font-semibold text-text-main truncate">{doc.name}</div>
+                              <div className="flex gap-2 mt-0.5">
+                                <span className="text-[10px] text-accent bg-accent/10 border border-accent/20 rounded-full px-1.5 py-0.5 font-semibold">{doc.type}</span>
+                                <span className="text-[10px] text-text-muted">{formatBytes(doc.size || 0)}</span>
+                                <span className="text-[10px] text-text-muted">{new Date(doc.uploadedAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-1.5 flex-shrink-0">
+                              <button onClick={() => downloadDoc(doc)} title="Download"
+                                className="w-7 h-7 rounded-lg bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors text-[12px] flex items-center justify-center">
+                                ↓
+                              </button>
+                              {isAdminOrManager && (
+                                <button onClick={() => handleDocDelete(doc.id)} disabled={deletingDocId === doc.id} title="Delete"
+                                  className="w-7 h-7 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 transition-colors text-[12px] flex items-center justify-center disabled:opacity-50">
+                                  {deletingDocId === doc.id ? "…" : "×"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 pt-0 border-t border-border flex gap-2.5 mt-2">
               {isAdminOrManager && (
-                <button onClick={() => openEdit(selected)} className="btn-primary flex-1">✏️ Edit</button>
+                <button onClick={() => openEdit(selected)} className="btn-primary flex-1">Edit</button>
               )}
               {isAdmin && (
                 <button onClick={() => setShowDeleteConfirm(true)}
                   className="flex-1 py-2.5 px-4 rounded-xl border border-danger/40 bg-danger/10 text-danger text-sm font-semibold hover:bg-danger/20 transition-colors">
-                  🗑 Delete
+                  Delete
                 </button>
               )}
-              <button onClick={() => setSelected(null)} className="btn-ghost flex-1">Close</button>
+              <button onClick={() => { setSelected(null); setProfileTab("info"); }} className="btn-ghost flex-1">Close</button>
             </div>
           </div>
         </div>
@@ -432,6 +663,15 @@ export default function StaffPage() {
                   </select>
                 </div>
               )}
+              <div>
+                <label className="label">Supervisor</label>
+                <select value={editForm.supervisorId} onChange={(e) => setEditForm({ ...editForm, supervisorId: e.target.value })} className="input">
+                  <option value="">No supervisor</option>
+                  {staff.filter((s: any) => s.id !== selected?.id).map((s: any) => (
+                    <option key={s.employee?.id} value={s.employee?.id}>{s.name} {s.employee?.jobTitle ? `— ${s.employee.jobTitle}` : ""}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="label">Address</label>
                 <input type="text" value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} className="input" placeholder="123 Main St" />

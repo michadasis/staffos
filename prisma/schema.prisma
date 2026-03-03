@@ -104,7 +104,7 @@ model Document {
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   name       String
   type       String
-  url        String
+  url        String   @db.LongText
   size       Int?
   uploadedAt DateTime @default(now())
 }
