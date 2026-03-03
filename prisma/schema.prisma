@@ -46,6 +46,8 @@ model User {
   name         String
   role         Role     @default(STAFF)
   status       AccountStatus @default(ACTIVE)
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean @default(false)
   avatar       String?
   refreshToken String?  @db.Text
   createdAt    DateTime @default(now())
