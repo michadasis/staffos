@@ -99,11 +99,41 @@ function TaskFormFields({ form, setForm, staff, departments }: {
   );
 }
 
+function FileIcon({ type }: { type: string }) {
+  if (type.startsWith("image/")) return <span>🖼️</span>;
+  if (type === "application/pdf") return <span>📄</span>;
+  if (type.includes("word") || type.includes("document")) return <span>📝</span>;
+  if (type.includes("sheet") || type.includes("excel") || type.includes("csv")) return <span>📊</span>;
+  if (type.includes("zip") || type.includes("rar") || type.includes("tar")) return <span>🗜️</span>;
+  return <span>📎</span>;
+}
+
+function formatBytes(base64: string) {
+  const bytes = (base64.length * 3) / 4;
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / 1048576).toFixed(1) + " MB";
+}
+
+function downloadFile(fileName: string, fileType: string, fileData: string) {
+  const byteChars = atob(fileData);
+  const byteArr = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+  const blob = new Blob([byteArr], { type: fileType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = fileName; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: () => void; currentUser: any }) {
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<{ name: string; type: string; data: string } | null>(null);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isAdminOrManager = currentUser?.role === "ADMIN" || currentUser?.role === "MANAGER";
 
@@ -114,17 +144,38 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
   useEffect(() => { fetchComments(); }, [task.id]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [comments]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("File too large. Max 5MB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      setAttachedFile({ name: file.name, type: file.type, data: base64 });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const postComment = async () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() && !attachedFile) return;
     setPosting(true);
     try {
       const res = await fetch(`/api/tasks/${task.id}/comments`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: newComment }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: newComment,
+          fileName: attachedFile?.name || null,
+          fileType: attachedFile?.type || null,
+          fileData: attachedFile?.data || null,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       setComments((c) => [...c, json.data]);
       setNewComment("");
+      setAttachedFile(null);
     } catch (err: any) { toast.error(err.message); }
     finally { setPosting(false); }
   };
@@ -169,6 +220,7 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
           ) : (
             comments.map((c) => {
               const isOwn = c.authorId === currentUser?.id;
+              const isImage = c.fileType?.startsWith("image/");
               return (
                 <div key={c.id} className="flex gap-3 group">
                   <Avatar name={c.authorName || "?"} size={28} />
@@ -180,7 +232,37 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
                         <button onClick={() => deleteComment(c.id)} className="ml-auto text-[10px] text-danger opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Delete</button>
                       )}
                     </div>
-                    <div className="text-[13px] text-text-soft leading-relaxed bg-surface-alt border border-border rounded-xl px-3.5 py-2.5">{c.content}</div>
+                    {c.content && (
+                      <div className="text-[13px] text-text-soft leading-relaxed bg-surface-alt border border-border rounded-xl px-3.5 py-2.5 mb-2">{c.content}</div>
+                    )}
+                    {c.fileData && (
+                      isImage ? (
+                        <div className="mt-1">
+                          <img
+                            src={}
+                            alt={c.fileName}
+                            className="max-w-full max-h-48 rounded-xl border border-border cursor-pointer hover:opacity-90 transition-opacity object-cover"
+                            onClick={() => setPreviewImg()}
+                          />
+                          <button
+                            onClick={() => downloadFile(c.fileName, c.fileType, c.fileData)}
+                            className="text-[10px] text-accent hover:underline mt-1 block">
+                            Download {c.fileName}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => downloadFile(c.fileName, c.fileType, c.fileData)}
+                          className="flex items-center gap-2.5 bg-surface-alt border border-border hover:border-accent/40 rounded-xl px-3.5 py-2.5 transition-colors group/file mt-1">
+                          <span className="text-xl"><FileIcon type={c.fileType} /></span>
+                          <div className="text-left min-w-0">
+                            <div className="text-[12px] font-semibold text-text-main truncate max-w-[200px]">{c.fileName}</div>
+                            <div className="text-[10px] text-text-muted">{formatBytes(c.fileData)} · Click to download</div>
+                          </div>
+                          <span className="ml-auto text-accent text-[11px] opacity-0 group-hover/file:opacity-100 transition-opacity">↓</span>
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               );
@@ -190,6 +272,16 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
         </div>
 
         <div className="px-6 py-4 border-t border-border flex-shrink-0">
+          {attachedFile && (
+            <div className="flex items-center gap-2.5 bg-accent/10 border border-accent/20 rounded-xl px-3 py-2 mb-3">
+              <span className="text-base"><FileIcon type={attachedFile.type} /></span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-semibold text-text-main truncate">{attachedFile.name}</div>
+                <div className="text-[10px] text-text-muted">{formatBytes(attachedFile.data)}</div>
+              </div>
+              <button onClick={() => setAttachedFile(null)} className="text-text-muted hover:text-danger text-sm flex-shrink-0">✕</button>
+            </div>
+          )}
           <div className="flex gap-3 items-end">
             <Avatar name={currentUser?.name || "?"} size={28} />
             <textarea
@@ -197,14 +289,29 @@ function DiscussionPanel({ task, onClose, currentUser }: { task: any; onClose: (
               onChange={(e) => setNewComment(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postComment(); } }}
               placeholder="Write a comment… (Enter to post)"
-              className="input text-sm resize-none min-h-[70px] flex-1"
+              className="input text-sm resize-none min-h-[60px] flex-1"
             />
           </div>
-          <div className="flex justify-end mt-2">
-            <button onClick={postComment} disabled={posting || !newComment.trim()} className="btn-primary text-sm px-5">{posting ? "Posting…" : "Post Comment"}</button>
+          <div className="flex items-center justify-between mt-2">
+            <div>
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.txt" />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[11px] font-semibold text-text-muted hover:text-accent border border-border hover:border-accent/40 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5">
+                📎 Attach File
+              </button>
+            </div>
+            <button onClick={postComment} disabled={posting || (!newComment.trim() && !attachedFile)} className="btn-primary text-sm px-5 disabled:opacity-50">{posting ? "Posting…" : "Post"}</button>
           </div>
         </div>
       </div>
+
+      {previewImg && (
+        <div onClick={() => setPreviewImg(null)} className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] p-4 cursor-zoom-out">
+          <img src={previewImg} alt="Preview" className="max-w-full max-h-full rounded-xl object-contain" />
+          <button onClick={() => setPreviewImg(null)} className="absolute top-4 right-4 text-white text-2xl hover:text-white/70">✕</button>
+        </div>
+      )}
     </div>
   );
 }

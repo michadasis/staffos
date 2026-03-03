@@ -15,7 +15,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     orderBy: { createdAt: "asc" },
   });
 
-  // Enrich with author name from userId stored in authorId
   const enriched = await Promise.all(comments.map(async (c) => {
     const user = await prisma.user.findUnique({ where: { id: c.authorId }, select: { name: true } });
     return { ...c, authorName: user?.name || "Unknown" };
@@ -31,11 +30,23 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   let payload;
   try { payload = verifyToken(token); } catch { return err("Invalid token", 401); }
 
-  const { content } = await req.json();
-  if (!content?.trim()) return err("Comment cannot be empty");
+  const body = await req.json();
+  const { content, fileName, fileType, fileData } = body;
+
+  if (!content?.trim() && !fileData) return err("Comment cannot be empty");
+
+  // Limit file size to ~5MB (base64 ~6.7MB string)
+  if (fileData && fileData.length > 7_000_000) return err("File too large. Maximum size is 5MB.");
 
   const comment = await prisma.taskComment.create({
-    data: { taskId: parseInt(id), authorId: payload.userId, content: content.trim() },
+    data: {
+      taskId: parseInt(id),
+      authorId: payload.userId,
+      content: content?.trim() || "",
+      fileName: fileName || null,
+      fileType: fileType || null,
+      fileData: fileData || null,
+    },
   });
 
   return ok({ ...comment, authorName: payload.name }, 201);

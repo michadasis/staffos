@@ -135,6 +135,9 @@ model TaskComment {
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   authorId  Int
   content   String   @db.Text
+  fileName  String?
+  fileType  String?
+  fileData  String?  @db.LongText
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
