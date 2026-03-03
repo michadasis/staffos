@@ -32,7 +32,7 @@ function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   );
 }
 
-// CRITICAL: TaskFormFields must be defined OUTSIDE the page component
+// ⚠️ CRITICAL: TaskFormFields must be defined OUTSIDE the page component
 // to prevent React from unmounting inputs on every keystroke
 function TaskFormFields({ form, setForm, staff, departments }: {
   form: any; setForm: (f: any) => void; staff: any[]; departments: any[];
@@ -438,90 +438,149 @@ export default function TasksPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="card h-14 animate-pulse bg-surface-alt" />)}</div>
+        <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="card h-24 animate-pulse bg-surface-alt" />)}</div>
       ) : view === "list" ? (
-        <div className="card overflow-hidden">
-          <div className="grid grid-cols-[2fr_1.4fr_0.7fr_0.9fr_0.8fr_auto] px-5 py-3 border-b border-border">
-            {["Task", "Assignee", "Priority", "Deadline", "Status", "Actions"].map((h) => (
-              <div key={h} className="text-[10px] font-bold text-text-muted uppercase tracking-wider">{h}</div>
-            ))}
-          </div>
-          {tasks.map((t, i) => (
-            <div key={t.id} className={`grid grid-cols-[2fr_1.4fr_0.7fr_0.9fr_0.8fr_auto] px-5 py-3.5 items-center hover:bg-surface-alt transition-colors ${i < tasks.length - 1 ? "border-b border-border" : ""}`}>
-              <div>
-                <div className="text-[13px] font-semibold text-text-main">{t.title}</div>
-                <button onClick={() => setTaskForDiscussion(t)} className="text-[10px] text-text-muted hover:text-accent transition-colors mt-0.5 flex items-center gap-1">
-                  💬 {t._count?.comments || 0} comments{t._count?.comments > 0 && <span className="text-accent"> · View</span>}
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                {t.assignee ? (
-                  <><Avatar name={t.assignee.user.name} size={24} /><span className="text-[12px] text-text-soft truncate">{t.assignee.user.name}</span></>
-                ) : (
-                  <span className="text-[11px] text-text-muted italic px-2 py-0.5 rounded-lg border border-dashed border-border">Unassigned</span>
-                )}
-              </div>
-              <Badge label={t.priority} />
-              <div className="text-[11px] text-text-muted">{t.deadline ? new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
-              <Badge label={t.status} />
-              <div className="flex items-center gap-1.5">
-                <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
-                  className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2 py-1 outline-none cursor-pointer">
-                  {(isAdminOrManager ? ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"] : ["PENDING", "IN_PROGRESS", "COMPLETED"]).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                </select>
-                <button onClick={() => setTaskForDiscussion(t)} className="text-text-muted hover:text-accent border border-border hover:border-accent/40 rounded-lg px-2 py-1 text-[11px] transition-colors" title="Discussion">💬</button>
-                {isAdminOrManager && (
-                  <>
-                    <button onClick={() => openEdit(t)} className="text-accent hover:bg-accent/10 border border-accent/30 rounded-lg px-2 py-1 text-[11px] transition-colors">✏️</button>
-                    <button onClick={() => setTaskToDelete(t)} className="text-danger hover:bg-danger/10 border border-danger/30 rounded-lg px-2 py-1 text-[11px] transition-colors">🗑</button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-          {tasks.length === 0 && <div className="p-10 text-center text-text-muted text-sm">No tasks found</div>}
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-4">
-          {cols.map((col) => {
-            const colTasks = tasks.filter((t) => t.status === col);
-            const colColor: Record<string, string> = { PENDING: "#f59e0b", IN_PROGRESS: "#3b82f6", COMPLETED: "#10b981" };
+        <div className="space-y-2.5">
+          {tasks.length === 0 && (
+            <div className="card p-12 text-center text-text-muted text-sm">No tasks found</div>
+          )}
+          {tasks.map((t) => {
+            const priorityLeft: Record<string, string> = {
+              CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#f59e0b", LOW: "#10b981",
+            };
+            const isOverdue = t.deadline && new Date(t.deadline) < new Date() && t.status !== "COMPLETED" && t.status !== "CANCELLED";
             return (
-              <div key={col} className="card p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 rounded-full" style={{ background: colColor[col] }} />
-                  <span className="text-[13px] font-bold text-text-main">{col.replace("_", " ")}</span>
-                  <span className="ml-auto text-[10px] text-text-muted bg-border rounded-full px-2 py-0.5">{colTasks.length}</span>
-                </div>
-                <div className="space-y-2.5">
-                  {colTasks.map((t) => (
-                    <div key={t.id} className="bg-bg border border-border rounded-xl p-3.5 hover:border-accent/30 transition-colors">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="text-[12px] font-semibold text-text-main">{t.title}</div>
+              <div key={t.id} className="card overflow-hidden hover:border-accent/30 transition-colors group">
+                {/* colour bar on left by priority */}
+                <div className="flex">
+                  <div className="w-1 flex-shrink-0" style={{ background: priorityLeft[t.priority] || "#3b82f6" }} />
+                  <div className="flex-1 px-4 py-3.5">
+                    {/* Top row */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[14px] font-bold text-text-main leading-snug">{t.title}</div>
+                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                          <Badge label={t.status} />
+                          <Badge label={t.priority} />
+                          {t.department && (
+                            <span className="text-[10px] text-text-muted bg-surface-alt px-2 py-0.5 rounded-full border border-border">{t.department.name}</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Action buttons — always visible on mobile, hover on desktop */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setTaskForDiscussion(t)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-border hover:border-accent/40 hover:text-accent text-text-muted transition-colors text-sm"
+                          title="Discussion">
+                          💬
+                        </button>
                         {isAdminOrManager && (
-                          <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => openEdit(t)} className="text-accent text-[10px] hover:bg-accent/10 rounded px-1">✏️</button>
-                            <button onClick={() => setTaskToDelete(t)} className="text-danger text-[10px] hover:bg-danger/10 rounded px-1">🗑</button>
-                          </div>
+                          <>
+                            <button onClick={() => openEdit(t)}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-accent/30 text-accent hover:bg-accent/10 transition-colors text-sm">
+                              ✏️
+                            </button>
+                            <button onClick={() => setTaskToDelete(t)}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-danger/30 text-danger hover:bg-danger/10 transition-colors text-sm">
+                              🗑
+                            </button>
+                          </>
                         )}
                       </div>
-                      <div className="flex items-center justify-between mb-2">
-                        {t.assignee ? (
-                          <div className="flex items-center gap-1.5"><Avatar name={t.assignee.user.name} size={18} /><span className="text-[10px] text-text-muted">{t.assignee.user.name.split(" ")[0]}</span></div>
-                        ) : <span className="text-[10px] text-text-muted italic">Unassigned</span>}
-                        <Badge label={t.priority} />
-                      </div>
-                      <button onClick={() => setTaskForDiscussion(t)} className="text-[10px] text-text-muted hover:text-accent transition-colors flex items-center gap-1 mt-1">
-                        💬 {t._count?.comments || 0} comments
-                      </button>
-                      {t.deadline && <div className="text-[10px] text-text-muted mt-1">📅 {new Date(t.deadline).toLocaleDateString()}</div>}
                     </div>
-                  ))}
-                  {colTasks.length === 0 && <div className="text-[11px] text-text-muted text-center py-4">Empty</div>}
+
+                    {/* Bottom row */}
+                    <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {/* Assignee */}
+                        {t.assignee ? (
+                          <div className="flex items-center gap-1.5">
+                            <Avatar name={t.assignee.user.name} size={20} />
+                            <span className="text-[11px] text-text-muted">{t.assignee.user.name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-text-muted italic border border-dashed border-border rounded-lg px-2 py-0.5">Unassigned</span>
+                        )}
+                        {/* Deadline */}
+                        {t.deadline && (
+                          <span className={`text-[11px] flex items-center gap-1 ${isOverdue ? "text-danger font-semibold" : "text-text-muted"}`}>
+                            📅 {new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            {isOverdue && <span className="text-[9px] bg-danger/10 border border-danger/20 text-danger px-1.5 py-0.5 rounded-full">Overdue</span>}
+                          </span>
+                        )}
+                        {/* Comments */}
+                        <button onClick={() => setTaskForDiscussion(t)}
+                          className="text-[11px] text-text-muted hover:text-accent transition-colors flex items-center gap-1">
+                          💬 {t._count?.comments || 0}
+                          {t._count?.comments > 0 && <span className="text-accent text-[10px]">· View</span>}
+                        </button>
+                      </div>
+                      {/* Status changer */}
+                      <select value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}
+                        className="bg-bg border border-border rounded-lg text-[11px] text-text-muted px-2.5 py-1.5 outline-none cursor-pointer hover:border-accent/40 transition-colors">
+                        {(isAdminOrManager
+                          ? ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
+                          : ["PENDING", "IN_PROGRESS", "COMPLETED"]
+                        ).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      ) : (
+        /* Board — horizontally scrollable on mobile */
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4 min-w-[640px] md:grid md:grid-cols-3 md:min-w-0">
+            {cols.map((col) => {
+              const colTasks = tasks.filter((t) => t.status === col);
+              const colColor: Record<string, string> = { PENDING: "#f59e0b", IN_PROGRESS: "#3b82f6", COMPLETED: "#10b981" };
+              return (
+                <div key={col} className="card p-4 w-64 md:w-auto flex-shrink-0">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: colColor[col] }} />
+                    <span className="text-[13px] font-bold text-text-main">{col.replace("_", " ")}</span>
+                    <span className="ml-auto text-[10px] text-text-muted bg-border rounded-full px-2 py-0.5">{colTasks.length}</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {colTasks.map((t) => (
+                      <div key={t.id} className="bg-bg border border-border rounded-xl p-3.5 hover:border-accent/30 transition-colors">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="text-[12px] font-semibold text-text-main leading-snug">{t.title}</div>
+                          {isAdminOrManager && (
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button onClick={() => openEdit(t)} className="text-accent text-[11px] hover:bg-accent/10 rounded-lg w-6 h-6 flex items-center justify-center">✏️</button>
+                              <button onClick={() => setTaskToDelete(t)} className="text-danger text-[11px] hover:bg-danger/10 rounded-lg w-6 h-6 flex items-center justify-center">🗑</button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between mb-2.5">
+                          {t.assignee ? (
+                            <div className="flex items-center gap-1.5">
+                              <Avatar name={t.assignee.user.name} size={18} />
+                              <span className="text-[10px] text-text-muted">{t.assignee.user.name.split(" ")[0]}</span>
+                            </div>
+                          ) : <span className="text-[10px] text-text-muted italic">Unassigned</span>}
+                          <Badge label={t.priority} />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <button onClick={() => setTaskForDiscussion(t)} className="text-[10px] text-text-muted hover:text-accent transition-colors flex items-center gap-1">
+                            💬 {t._count?.comments || 0}
+                          </button>
+                          {t.deadline && (
+                            <span className="text-[10px] text-text-muted">📅 {new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {colTasks.length === 0 && <div className="text-[11px] text-text-muted text-center py-6 border border-dashed border-border rounded-xl">Empty</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
