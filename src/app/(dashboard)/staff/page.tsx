@@ -190,16 +190,21 @@ export default function StaffPage() {
                   <Badge label={s.employee?.status || "ACTIVE"} type="status" />
                 </div>
                 <div className="text-[11px] text-text-muted mb-2.5">🏢 {s.employee?.department?.name || "—"}</div>
-                {total > 0 && (
-                  <div>
-                    <div className="flex justify-between text-[10px] text-text-muted mb-1">
-                      <span>Tasks</span><span className="font-mono text-text-main">{total}</span>
-                    </div>
-                    <div className="h-1 bg-border rounded-full">
-                      <div className="h-full bg-accent rounded-full" style={{ width: "60%" }} />
-                    </div>
-                  </div>
-                )}
+                {total > 0 && (() => {
+                    const completed = s.employee?.assignedTasks?.length || 0;
+                    const rate = Math.round((completed / total) * 100);
+                    return (
+                      <div>
+                        <div className="flex justify-between text-[10px] text-text-muted mb-1">
+                          <span>Tasks</span>
+                          <span className="font-mono text-text-main">{completed}/{total}</span>
+                        </div>
+                        <div className="h-1 bg-border rounded-full">
+                          <div className="h-full bg-accent rounded-full" style={{ width: `${rate}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
               </div>
             );
           })}

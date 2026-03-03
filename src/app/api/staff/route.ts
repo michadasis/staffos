@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
           include: {
             department: true,
             _count: { select: { assignedTasks: true } },
+            assignedTasks: { where: { status: "COMPLETED" }, select: { id: true } },
             supervisor: { include: { user: { select: { name: true } } } },
           },
         },
