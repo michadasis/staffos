@@ -76,8 +76,8 @@ export default function MessagesPage() {
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[14px] font-bold text-text-main">Messages</span>
-          <button onClick={() => setShowNew(true)} className="w-8 h-8 rounded-xl bg-accent text-white font-bold text-lg flex items-center justify-center hover:bg-accent/80 transition-colors">+</button>
+          <span className="hidden md:block text-[14px] font-bold text-text-main">Messages</span>
+          <button onClick={() => setShowNew(true)} className="w-8 h-8 rounded-xl bg-accent text-white font-bold text-lg flex items-center justify-center hover:bg-accent/80 transition-colors ml-auto">+</button>
         </div>
         <input placeholder="Search…" className="input text-xs py-2" />
       </div>
