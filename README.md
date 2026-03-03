@@ -185,7 +185,7 @@ prisma/
 **Authentication and Access**
 - JWT authentication with httpOnly cookies
 - Role-based access control enforced at both the UI and API layers
-- Registration approval flow — new accounts are created with a PENDING status and cannot log in until an admin approves them
+- Registration approval flow, new accounts are created with a PENDING status and cannot log in until an admin approves them
 - Optional two factor authentication using TOTP with QR code setup, compatible with any authenticator app
 - Email change requests for staff members, requiring admin or manager approval before the change is applied
 - Admins and managers can update their own email directly without an approval step
