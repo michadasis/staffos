@@ -20,8 +20,8 @@ const NAV_ALL = [
 
 // Priority items shown in mobile bottom nav (max 5) per role
 const MOBILE_NAV: Record<string, string[]> = {
-  ADMIN:   ["/dashboard", "/staff", "/tasks", "/audit-logs", "/backup"],
-  MANAGER: ["/dashboard", "/staff", "/tasks", "/messages", "/audit-logs"],
+  ADMIN:   ["/dashboard", "/staff", "/tasks", "/messages", "/audit-logs", "/backup"],
+  MANAGER: ["/dashboard", "/staff", "/tasks", "/messages", "/audit-logs", "/backup"],
   STAFF:   ["/dashboard", "/tasks", "/messages", "/settings"],
 };
 
@@ -176,10 +176,10 @@ function BottomNav() {
         const active = pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href));
         return (
           <Link key={n.href} href={n.href}
-            className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition-colors
+            className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors
               ${active ? "text-accent" : "text-text-muted"}`}>
-            <span className="text-xl leading-none">{n.icon}</span>
-            <span className="text-[9px] font-semibold tracking-tight">{n.label}</span>
+            <span className="text-lg leading-none">{n.icon}</span>
+            <span className="text-[8px] font-semibold tracking-tight">{n.label}</span>
           </Link>
         );
       })}
