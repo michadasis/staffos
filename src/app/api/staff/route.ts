@@ -77,5 +77,19 @@ export async function POST(req: NextRequest) {
     include: { employee: { include: { department: true } } },
   });
 
+  // Record join event in work history
+  if (user.employee) {
+    await prisma.workHistory.create({
+      data: {
+        employeeId: user.employee.id,
+        type: "JOINED",
+        title: "Joined the company",
+        description: user.employee.jobTitle ? `Started as ${user.employee.jobTitle}` : null,
+        recordedById: payload.userId,
+        occurredAt: new Date(),
+      },
+    });
+  }
+
   return ok({ id: user.id, email: user.email, name: user.name, role: user.role, employee: user.employee }, 201);
 }

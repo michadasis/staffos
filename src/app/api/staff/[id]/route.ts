@@ -45,6 +45,12 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const body = await req.json();
   const { name, role, departmentId, jobTitle, phone, address, status, supervisorId } = body;
 
+  // Fetch current state for change detection
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { employee: { include: { department: true } } },
+  });
+
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -63,6 +69,36 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     },
     include: { employee: { include: { department: true } } },
   });
+
+  // Auto-record meaningful changes as work history
+  const historyEntries: any[] = [];
+  const emp = current?.employee;
+
+  if (role && payload.role === "ADMIN" && current?.role && role !== current.role) {
+    historyEntries.push({ type: "ROLE_CHANGE", title: "Role Changed", fromValue: current.role, toValue: role });
+  }
+  if (status && emp?.status && status !== emp.status) {
+    historyEntries.push({ type: "STATUS_CHANGE", title: "Status Changed", fromValue: emp.status, toValue: status });
+  }
+  if (departmentId !== undefined && emp?.departmentId !== null && departmentId !== emp?.departmentId) {
+    const newDept = await prisma.department.findUnique({ where: { id: departmentId } }).catch(() => null);
+    historyEntries.push({ type: "DEPARTMENT_TRANSFER", title: "Department Transfer", fromValue: emp?.department?.name || "None", toValue: newDept?.name || "None" });
+  }
+  if (jobTitle && emp?.jobTitle && jobTitle !== emp.jobTitle) {
+    historyEntries.push({ type: "PROMOTION", title: "Job Title Changed", fromValue: emp.jobTitle, toValue: jobTitle });
+  }
+
+  if (historyEntries.length > 0) {
+    await prisma.workHistory.createMany({
+      data: historyEntries.map((e) => ({
+        employeeId: user.employee!.id,
+        recordedById: payload.userId,
+        occurredAt: new Date(),
+        ...e,
+      })),
+    });
+  }
+
   await prisma.auditLog.create({
     data: { userId: payload.userId, action: "UPDATE_STAFF", entity: "User", entityId: userId, after: body },
   });

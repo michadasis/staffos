@@ -44,12 +44,18 @@ export default function StaffPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // document state
-  const [profileTab, setProfileTab] = useState<"info" | "documents">("info");
+  const [profileTab, setProfileTab] = useState<"info" | "documents" | "history">("info");
   const [documents, setDocuments] = useState<any[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const [workHistory, setWorkHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showAddHistory, setShowAddHistory] = useState(false);
+  const [historyForm, setHistoryForm] = useState({ type: "NOTE", title: "", description: "", fromValue: "", toValue: "", occurredAt: "" });
+  const [savingHistory, setSavingHistory] = useState(false);
+  const [deletingHistoryId, setDeletingHistoryId] = useState<number | null>(null);
 
   // approval state
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
@@ -158,6 +164,49 @@ export default function StaffPage() {
 
   const formatBytes = (b: number) =>
     b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(1)}KB` : `${(b / 1048576).toFixed(1)}MB`;
+
+  const fetchWorkHistory = async (employeeId: number) => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/staff/work-history?employeeId=${employeeId}`);
+      const json = await res.json();
+      setWorkHistory(json.data || []);
+    } catch { setWorkHistory([]); }
+    finally { setHistoryLoading(false); }
+  };
+
+  const handleAddHistory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected?.employee?.id) return;
+    setSavingHistory(true);
+    try {
+      const res = await fetch("/api/staff/work-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: selected.employee.id, ...historyForm }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Entry added!");
+      setShowAddHistory(false);
+      setHistoryForm({ type: "NOTE", title: "", description: "", fromValue: "", toValue: "", occurredAt: "" });
+      fetchWorkHistory(selected.employee.id);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSavingHistory(false); }
+  };
+
+  const handleDeleteHistory = async (id: number) => {
+    if (!confirm("Delete this work history entry?")) return;
+    setDeletingHistoryId(id);
+    try {
+      const res = await fetch(`/api/staff/work-history?id=${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setWorkHistory((h) => h.filter((x) => x.id !== id));
+      toast.success("Entry deleted");
+    } catch (err: any) { toast.error(err.message); }
+    finally { setDeletingHistoryId(null); }
+  };
 
   // ── staff handlers ─────────────────────────────────────────────────────────
 
@@ -415,7 +464,7 @@ export default function StaffPage() {
 
       {/* Detail modal */}
       {selected && !editing && (
-        <div onClick={() => { setSelected(null); setProfileTab("info"); }} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div onClick={() => { setSelected(null); setProfileTab("info"); setShowAddHistory(false); }} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
             <div className="p-6 pb-0">
               <div className="flex gap-4 mb-4">
@@ -432,11 +481,15 @@ export default function StaffPage() {
                 </div>
               </div>
               <div className="flex border-b border-border">
-                {(["info", "documents"] as const).map((t) => (
-                  <button key={t} onClick={() => { setProfileTab(t); if (t === "documents" && selected.employee?.id) fetchDocuments(selected.employee.id); }}
+                {(["info", "documents", "history"] as const).map((t) => (
+                  <button key={t} onClick={() => {
+                    setProfileTab(t as any);
+                    if (t === "documents" && selected.employee?.id) fetchDocuments(selected.employee.id);
+                    if (t === "history" && selected.employee?.id) fetchWorkHistory(selected.employee.id);
+                  }}
                     className={`text-[12px] font-semibold px-4 py-2.5 border-b-2 transition-colors -mb-px
                       ${profileTab === t ? "border-accent text-accent" : "border-transparent text-text-muted hover:text-text-soft"}`}>
-                    {t === "info" ? "Profile" : "Documents"}
+                    {t === "info" ? "Profile" : t === "documents" ? "Documents" : "History"}
                   </button>
                 ))}
               </div>
@@ -518,6 +571,123 @@ export default function StaffPage() {
                   )}
                 </div>
               )}
+
+              {profileTab === "history" && (
+                <div className="space-y-4">
+                  {isAdminOrManager && !showAddHistory && (
+                    <button onClick={() => setShowAddHistory(true)}
+                      className="w-full py-2.5 rounded-xl border-2 border-dashed border-border hover:border-accent/50 text-text-muted hover:text-accent transition-colors text-[12px] font-semibold">
+                      + Add Entry
+                    </button>
+                  )}
+
+                  {showAddHistory && (
+                    <form onSubmit={handleAddHistory} className="bg-surface-alt border border-border rounded-xl p-4 space-y-3">
+                      <div className="text-[12px] font-bold text-text-main">New Work History Entry</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <label className="label text-[10px]">Type</label>
+                          <select value={historyForm.type} onChange={(e) => setHistoryForm({...historyForm, type: e.target.value})} className="input text-sm">
+                            <option value="NOTE">Note</option>
+                            <option value="PROMOTION">Promotion</option>
+                            <option value="ROLE_CHANGE">Role Change</option>
+                            <option value="DEPARTMENT_TRANSFER">Department Transfer</option>
+                            <option value="STATUS_CHANGE">Status Change</option>
+                            <option value="JOINED">Joined</option>
+                          </select>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="label text-[10px]">Title</label>
+                          <input type="text" required value={historyForm.title} onChange={(e) => setHistoryForm({...historyForm, title: e.target.value})} className="input text-sm" placeholder="e.g. Promoted to Senior Engineer" />
+                        </div>
+                        <div>
+                          <label className="label text-[10px]">From</label>
+                          <input type="text" value={historyForm.fromValue} onChange={(e) => setHistoryForm({...historyForm, fromValue: e.target.value})} className="input text-sm" placeholder="Previous value" />
+                        </div>
+                        <div>
+                          <label className="label text-[10px]">To</label>
+                          <input type="text" value={historyForm.toValue} onChange={(e) => setHistoryForm({...historyForm, toValue: e.target.value})} className="input text-sm" placeholder="New value" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="label text-[10px]">Date</label>
+                          <input type="date" value={historyForm.occurredAt} onChange={(e) => setHistoryForm({...historyForm, occurredAt: e.target.value})} className="input text-sm" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="label text-[10px]">Notes (optional)</label>
+                          <textarea value={historyForm.description} onChange={(e) => setHistoryForm({...historyForm, description: e.target.value})} className="input text-sm resize-none" rows={2} placeholder="Additional details…" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="submit" disabled={savingHistory} className="btn-primary text-sm flex-1 disabled:opacity-50">{savingHistory ? "Saving…" : "Save Entry"}</button>
+                        <button type="button" onClick={() => setShowAddHistory(false)} className="btn-ghost text-sm flex-1">Cancel</button>
+                      </div>
+                    </form>
+                  )}
+
+                  {historyLoading ? (
+                    <div className="space-y-2">{[...Array(4)].map((_,i) => <div key={i} className="h-16 rounded-xl bg-surface-alt animate-pulse" />)}</div>
+                  ) : workHistory.length === 0 ? (
+                    <div className="text-center py-8 text-text-muted text-[12px]">No work history recorded yet</div>
+                  ) : (
+                    <div className="relative">
+                      {/* Timeline line */}
+                      <div className="absolute left-[13px] top-4 bottom-4 w-px bg-border" />
+                      <div className="space-y-4">
+                        {workHistory.map((h) => {
+                          const typeConfig: Record<string, { color: string; icon: string }> = {
+                            JOINED:               { color: "bg-success border-success/30 text-success", icon: "★" },
+                            PROMOTION:            { color: "bg-accent border-accent/30 text-accent", icon: "▲" },
+                            ROLE_CHANGE:          { color: "bg-purple-400 border-purple-400/30 text-purple-400", icon: "◆" },
+                            DEPARTMENT_TRANSFER:  { color: "bg-warning border-warning/30 text-warning", icon: "→" },
+                            STATUS_CHANGE:        { color: "bg-orange-400 border-orange-400/30 text-orange-400", icon: "●" },
+                            NOTE:                 { color: "bg-text-muted border-border text-text-muted", icon: "—" },
+                          };
+                          const cfg = typeConfig[h.type] || typeConfig.NOTE;
+                          return (
+                            <div key={h.id} className="flex gap-3 relative">
+                              {/* Dot */}
+                              <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[10px] font-bold flex-shrink-0 z-10 bg-surface ${cfg.color}`}>
+                                {cfg.icon}
+                              </div>
+                              {/* Content */}
+                              <div className="flex-1 min-w-0 bg-surface-alt border border-border rounded-xl p-3 group">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-[12px] font-bold text-text-main">{h.title}</span>
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${cfg.color}/10`}>
+                                        {h.type.replace(/_/g, " ")}
+                                      </span>
+                                    </div>
+                                    {(h.fromValue || h.toValue) && (
+                                      <div className="flex items-center gap-1.5 mt-1">
+                                        {h.fromValue && <span className="text-[10px] text-text-muted line-through">{h.fromValue}</span>}
+                                        {h.fromValue && h.toValue && <span className="text-[10px] text-accent">→</span>}
+                                        {h.toValue && <span className="text-[10px] font-semibold text-text-soft">{h.toValue}</span>}
+                                      </div>
+                                    )}
+                                    {h.description && <p className="text-[11px] text-text-muted mt-1">{h.description}</p>}
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                      <span className="text-[10px] text-text-muted">{new Date(h.occurredAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</span>
+                                      {h.recordedBy && <span className="text-[10px] text-text-muted">· Added by {h.recordedBy.name}</span>}
+                                    </div>
+                                  </div>
+                                  {isAdmin && (
+                                    <button onClick={() => handleDeleteHistory(h.id)} disabled={deletingHistoryId === h.id} title="Delete"
+                                      className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg text-danger hover:bg-danger/10 transition-all text-[11px] flex items-center justify-center flex-shrink-0 disabled:opacity-50">
+                                      {deletingHistoryId === h.id ? "…" : "×"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="p-6 pt-3 border-t border-border flex gap-2.5">
@@ -528,7 +698,7 @@ export default function StaffPage() {
                   Delete
                 </button>
               )}
-              <button onClick={() => { setSelected(null); setProfileTab("info"); }} className="btn-ghost flex-1">Close</button>
+              <button onClick={() => { setSelected(null); setProfileTab("info"); setShowAddHistory(false); }} className="btn-ghost flex-1">Close</button>
             </div>
           </div>
         </div>
