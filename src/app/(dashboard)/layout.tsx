@@ -18,6 +18,13 @@ const NAV_ALL = [
   { href: "/settings", icon: "⚙️", label: "Settings", roles: ["ADMIN", "MANAGER", "STAFF"] },
 ];
 
+// Priority items shown in mobile bottom nav (max 5) per role
+const MOBILE_NAV: Record<string, string[]> = {
+  ADMIN:   ["/dashboard", "/staff", "/tasks", "/audit-logs", "/backup"],
+  MANAGER: ["/dashboard", "/staff", "/tasks", "/messages", "/audit-logs"],
+  STAFF:   ["/dashboard", "/tasks", "/messages", "/settings"],
+};
+
 function Avatar({ name, size = 36 }: { name: string; size?: number }) {
   const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
   const colors = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
@@ -158,7 +165,10 @@ function BottomNav() {
   const { user } = useAuth();
   const role = user?.role || "STAFF";
 
-  const mobileNav = NAV_ALL.filter((n) => n.roles.includes(role)).slice(0, 5);
+  const priorityHrefs = MOBILE_NAV[role] || MOBILE_NAV.STAFF;
+  const mobileNav = priorityHrefs
+    .map((href) => NAV_ALL.find((n) => n.href === href))
+    .filter((n): n is typeof NAV_ALL[0] => !!n && n.roles.includes(role));
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-30 flex" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
