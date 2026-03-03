@@ -8,7 +8,7 @@ A full stack staff management system, designed for teams to manage employees, ta
 
 - **Framework:** Next.js 15 (App Router)
 - **Database:** MySQL via Prisma ORM
-- **Auth:** JWT with httpOnly cookies
+- **Auth:** JWT with httpOnly cookies + optional TOTP two factor authentication
 - **Styling:** Tailwind CSS (dark theme)
 
 ---
@@ -85,96 +85,147 @@ src/
 │   │   ├── login/
 │   │   └── register/
 │   ├── (dashboard)/
-│   │   ├── layout.tsx          # Sidebar + topbar + mobile nav
-│   │   ├── dashboard/          # Stats overview
-│   │   ├── staff/              # Employee directory + CRUD
-│   │   ├── tasks/              # Task management + kanban + comments
-│   │   ├── performance/        # Completion rate analytics
-│   │   ├── messages/           # Direct messaging
-│   │   ├── reports/            # Reports + CSV export
-│   │   └── settings/           # Profile + password change
+│   │   ├── layout.tsx              # Sidebar + topbar + mobile bottom nav
+│   │   ├── dashboard/              # Stats overview
+│   │   ├── staff/                  # Employee directory + CRUD + approvals
+│   │   ├── tasks/                  # Task management + kanban + comments + files
+│   │   ├── performance/            # Completion rate analytics
+│   │   ├── messages/               # Direct messaging
+│   │   ├── reports/                # Reports + CSV export
+│   │   └── settings/               # Profile, password, email change, 2FA
 │   └── api/
-│       ├── auth/               # login, logout, register, me, change-password
-│       ├── staff/              # CRUD employees
-│       ├── tasks/              # CRUD tasks + comments
-│       ├── messages/           # Messaging
-│       ├── departments/        # Departments
-│       ├── dashboard/          # Aggregated stats
-│       ├── notifications/      # Real-time notifications
-│       └── reports/            # Report generation
+│       ├── auth/
+│       │   ├── login/              # Login with optional 2FA challenge
+│       │   ├── logout/
+│       │   ├── register/           # Registration (pending admin approval)
+│       │   ├── me/
+│       │   ├── change-password/
+│       │   ├── email-change/       # Email change requests and approval
+│       │   └── 2fa/                # 2FA setup, enable, disable
+│       ├── staff/
+│       │   └── pending/            # Pending registration approvals
+│       ├── tasks/
+│       │   └── [id]/comments/      # Task comments and file attachments
+│       ├── messages/
+│       ├── departments/
+│       ├── dashboard/
+│       ├── notifications/
+│       └── reports/
 ├── components/
-│   └── AuthProvider.tsx        # JWT auth context + user state
+│   └── AuthProvider.tsx            # JWT auth context and user state
 ├── lib/
-│   ├── prisma.ts               # Prisma client singleton
-│   ├── jwt.ts                  # Token sign/verify (jose)
-│   ├── auth.ts                 # Cookie helpers
-│   └── response.ts             # Typed API response helpers
-├── middleware.ts                # Edge-compatible route protection
-└── types/index.ts              # Shared TypeScript types
+│   ├── prisma.ts
+│   ├── jwt.ts                      # Token sign/verify (jose)
+│   ├── auth.ts
+│   └── response.ts
+├── middleware.ts                    # Edge-compatible route protection
+└── types/index.ts
 
 prisma/
-├── schema.prisma               # Full 11-table schema
-└── seed.js                     # Demo data seeder
+├── schema.prisma                   # Full 12-table schema
+└── seed.js
 ```
 
 ---
 
 ## Database Schema
 
-| Table             | Description                          |
-|-------------------|--------------------------------------|
-| User              | Accounts with email and hashed password |
-| Employee          | Staff profiles linked to users       |
-| Department        | Organisational departments           |
-| Task              | Tasks with status, priority, deadline |
-| TaskComment       | Threaded comments on tasks           |
-| Message           | Direct messages between users        |
-| ActivityLog       | Per-employee activity history        |
-| PerformanceReport | Monthly performance snapshots        |
-| AuditLog          | Security audit trail                 |
-| Document          | Employee document storage            |
+| Table               | Description                                                       |
+|---------------------|-------------------------------------------------------------------|
+| User                | Accounts with email, hashed password, 2FA fields, account status |
+| Employee            | Staff profiles linked to users                                    |
+| Department          | Organisational departments                                        |
+| Task                | Tasks with status, priority, deadline                             |
+| TaskComment         | Threaded comments with optional file attachments                  |
+| Message             | Direct messages between users                                     |
+| ActivityLog         | Per employee activity history                                     |
+| PerformanceReport   | Monthly performance snapshots                                     |
+| AuditLog            | Security audit trail                                              |
+| Document            | Employee document storage                                         |
+| EmailChangeRequest  | Pending email change requests submitted by staff                  |
 
 ---
 
-## Auth Flow
+## Auth and Security
 
 - JWT stored in an `httpOnly` cookie (`staffos_token`)
 - Middleware uses `jose` for edge-compatible token verification
 - Token expires in 7 days
-- Passwords hashed with bcrypt (10 rounds)
+- Passwords hashed with bcrypt (12 rounds)
 - Role hierarchy: `ADMIN` > `MANAGER` > `STAFF`
-- Self-registration is locked to `STAFF` role — elevation requires admin action
+- Self-registration locked to `STAFF` role and requires admin approval before the account can be used
+- Optional TOTP two factor authentication via Google Authenticator, Authy, or any TOTP-compatible app
+- Account statuses: `PENDING`, `ACTIVE`, `REJECTED`
 
 ---
 
 ## Role Permissions
 
-| Feature              | Admin | Manager | Staff       |
-|----------------------|-------|---------|-------------|
-| View all staff       | Yes   | Yes     | No          |
-| Add / edit staff     | Yes   | Yes     | No          |
-| Delete staff         | Yes   | No      | No          |
-| Create tasks         | Yes   | Yes     | No          |
-| Delete tasks         | Yes   | Yes     | No          |
-| View all tasks       | Yes   | Yes     | Own only    |
-| Performance page     | Yes   | Yes     | No          |
-| Reports page         | Yes   | Yes     | No          |
-| Change own password  | Yes   | Yes     | Yes         |
-| Edit own profile     | Yes   | Yes     | Yes         |
+| Feature                        | Admin | Manager | Staff    |
+|-------------------------------|-------|---------|----------|
+| View all staff                 | Yes   | Yes     | No       |
+| Add / edit staff               | Yes   | Yes     | No       |
+| Delete staff                   | Yes   | No      | No       |
+| Approve registrations          | Yes   | No      | No       |
+| Approve email changes          | Yes   | Yes     | No       |
+| Create / delete tasks          | Yes   | Yes     | No       |
+| View all tasks                 | Yes   | Yes     | Own only |
+| Task discussions and files     | Yes   | Yes     | Yes      |
+| Performance page               | Yes   | Yes     | No       |
+| Reports page                   | Yes   | Yes     | No       |
+| Change own password            | Yes   | Yes     | Yes      |
+| Change own email directly      | Yes   | Yes     | No       |
+| Request email change           | Yes   | Yes     | Yes      |
+| Enable / disable 2FA           | Yes   | Yes     | Yes      |
 
 ---
 
 ## Features
 
+**Authentication and Access**
 - JWT authentication with httpOnly cookies
-- Role-based access control across UI and API
-- Employee directory with full CRUD
-- Task management with list and kanban board views
-- Threaded task comments and discussions
-- Internal direct messaging system
-- Dashboard with real stats from the database
-- Performance analytics per employee and department
-- CSV report export
-- Real-time notifications (unread messages, overdue tasks, new assignments)
-- Password change with strength indicator
-- Responsive design, sidebar on desktop, bottom navigation on mobile
+- Role-based access control enforced at both the UI and API layers
+- Registration approval flow — new accounts are created with a PENDING status and cannot log in until an admin approves them
+- Optional two factor authentication using TOTP with QR code setup, compatible with any authenticator app
+- Email change requests for staff members, requiring admin or manager approval before the change is applied
+- Admins and managers can update their own email directly without an approval step
+
+**Staff Management**
+- Employee directory with full create, read, update, delete
+- Pending registration queue at the top of the Staff page with approve and reject actions
+- Pending email change queue visible to admins and managers
+- Task completion progress bar per employee card, calculated from live data
+
+**Task Management**
+- Card-based list view with a coloured priority indicator on each card and automatic overdue detection
+- Kanban board view that stacks vertically on mobile and displays as a 3 column grid on desktop
+- Full task editing including assignee, priority, status, department, and deadline
+- Threaded discussion panel per task with comment count
+- File attachments in discussions, images render inline with a tap-to-fullscreen lightbox, other file types display as a labelled download card (5MB limit per file, stored as base64 in the database)
+
+**Notifications**
+- Notification bell in the topbar polling every 30 seconds
+- Surfaces unread messages, overdue tasks, newly assigned tasks, pending registrations, and pending email change requests
+
+**Messaging**
+- Direct messages between any two users
+- Mobile layout: full screen conversation list with a separate chat view and a back button to return to the list
+
+**Analytics**
+- Dashboard with real company wide stats for admins and managers, personal task summary for staff
+- Performance page with per employee and per department completion rates from live data
+- Reports page with real department stats and CSV export
+
+**Settings**
+- Profile editing for name and job title
+- Password change with a live strength indicator and show/hide toggle
+- Email change with a role aware flow (direct for admins and managers, request based for staff)
+- Two factor authentication with QR code setup and code confirmed disable
+
+**Responsive Design**
+- Bottom navigation bar on mobile replacing the sidebar
+- Collapsible sidebar on desktop
+- Profile avatar in the topbar opens a Settings and Log Out menu on mobile
+- All pages adapted for small screens including messages, tasks, staff directory, and the kanban board
+
+---
