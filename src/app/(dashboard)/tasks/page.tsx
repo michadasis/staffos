@@ -532,13 +532,13 @@ export default function TasksPage() {
         </div>
       ) : (
         /* Board — horizontally scrollable on mobile */
-        <div className="overflow-x-auto pb-2">
-          <div className="flex gap-4 min-w-[640px] md:grid md:grid-cols-3 md:min-w-0">
+        <div>
+          <div className="flex flex-col gap-4 md:grid md:grid-cols-3">
             {cols.map((col) => {
               const colTasks = tasks.filter((t) => t.status === col);
               const colColor: Record<string, string> = { PENDING: "#f59e0b", IN_PROGRESS: "#3b82f6", COMPLETED: "#10b981" };
               return (
-                <div key={col} className="card p-4 w-64 md:w-auto flex-shrink-0">
+                <div key={col} className="card p-4 flex-shrink-0">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: colColor[col] }} />
                     <span className="text-[13px] font-bold text-text-main">{col.replace("_", " ")}</span>
