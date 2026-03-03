@@ -37,7 +37,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   return (
     <aside className={`hidden md:flex flex-col bg-surface border-r border-border transition-all duration-300 ${collapsed ? "w-[68px]" : "w-[230px]"} flex-shrink-0 h-screen sticky top-0`}>
       <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-base flex-shrink-0">⚡</div>
+        <img src="/logo.png" alt="StaffOS" className="w-9 h-9 rounded-xl flex-shrink-0 object-cover" />
         {!collapsed && <span className="font-extrabold text-[15px] tracking-tight text-text-main whitespace-nowrap">StaffOS</span>}
         <button onClick={onToggle} className={`ml-auto text-text-muted hover:text-text-main transition-colors ${collapsed ? "hidden" : "block"}`}>◀</button>
       </div>
@@ -107,7 +107,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
       {/* Drawer */}
       <div className={`md:hidden fixed top-0 left-0 h-full w-72 bg-surface border-r border-border z-50 flex flex-col transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-base">⚡</div>
+          <img src="/logo.png" alt="StaffOS" className="w-9 h-9 rounded-xl object-cover" />
           <span className="font-extrabold text-[15px] tracking-tight text-text-main">StaffOS</span>
           <button onClick={onClose} className="ml-auto text-text-muted hover:text-text-main text-xl">✕</button>
         </div>
@@ -322,7 +322,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   if (loading) return (
     <div className="min-h-screen bg-bg flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-lg animate-pulse">⚡</div>
+        <img src="/logo.png" alt="StaffOS" className="w-10 h-10 rounded-xl object-cover animate-pulse" />
         <div className="text-text-muted text-sm">Loading StaffOS…</div>
       </div>
     </div>
