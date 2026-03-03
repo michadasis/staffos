@@ -264,6 +264,7 @@ function NotificationBell() {
 function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const router = useRouter();
   const pageTitle = NAV_ALL.find((n) => pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href)))?.label || "Dashboard";
 
   return (
@@ -278,7 +279,15 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           <input placeholder="Quick search…" className="bg-transparent outline-none text-text-main text-xs w-32 placeholder-text-muted" />
         </div>
         <NotificationBell />
-        {user && <Avatar name={user.name} size={32} />}
+        {/* Desktop: plain avatar. Mobile: avatar taps to settings */}
+        {user && (
+          <>
+            <span className="hidden md:block"><Avatar name={user.name} size={32} /></span>
+            <button className="md:hidden" onClick={() => router.push("/settings")} title="Settings">
+              <Avatar name={user.name} size={32} />
+            </button>
+          </>
+        )}
       </div>
     </header>
   );
