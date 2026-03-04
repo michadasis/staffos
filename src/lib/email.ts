@@ -188,3 +188,15 @@ export async function sendResendVerificationEmail(to: string, name: string, toke
     ${btn("Verify Email Address", url, "#22c55e")}
   `));
 }
+
+export async function sendEmailChangeConfirmationEmail(to: string, name: string, token: string, newEmail: string) {
+  const url = `${APP_URL}/confirm-email-change?token=${token}`;
+  await send(to, "Confirm your new email address", layout(`
+    ${h1("Confirm your new email")}
+    ${p(`Hello ${name}, please confirm that you want to change your email address to <strong style="color:#f1f5f9">${newEmail}</strong>.`)}
+    ${p("This link expires in 24 hours. If you did not request this change, you can ignore this email.")}
+    ${btn("Confirm New Email", url, "#3b82f6")}
+    ${divider()}
+    ${p(`<span style="font-size:11px;color:#64748b">Or paste this link: <a href="${url}" style="color:#3b82f6;word-break:break-all">${url}</a></span>`)}
+  `));
+}

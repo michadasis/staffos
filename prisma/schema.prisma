@@ -52,6 +52,9 @@ model User {
   emailVerified    Boolean  @default(false)
   verifyToken      String?  @unique
   verifyTokenExpiry DateTime?
+  pendingEmail          String?
+  emailChangeToken      String?  @unique
+  emailChangeTokenExpiry DateTime?
   avatar       String?
   refreshToken String?  @db.Text
   createdAt    DateTime @default(now())

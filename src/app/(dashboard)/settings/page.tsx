@@ -119,8 +119,8 @@ export default function SettingsPage() {
     finally { setChangingPw(false); }
   };
 
-  const submitEmailChange = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitEmailChange = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    e?.preventDefault();
     if (!newEmail.trim()) return;
     setSubmittingEmail(true);
     try {
@@ -135,6 +135,8 @@ export default function SettingsPage() {
         setForm((f) => ({ ...f, email: newEmail }));
         await refresh();
         toast.success("Email updated!");
+      } else if (json.data?.message?.includes("confirmation")) {
+        toast.success("Check your new inbox — a confirmation link has been sent!");
       } else {
         toast.success("Request submitted! An admin will review it.");
       }
@@ -207,16 +209,16 @@ export default function SettingsPage() {
                 <p className="text-[10px] text-text-muted mt-1">Email changes require admin approval</p>
               )}
               {showEmailChange && (
-                <form onSubmit={submitEmailChange} className="mt-3 p-4 bg-surface-alt border border-border rounded-xl space-y-3">
+                <div className="mt-3 p-4 bg-surface-alt border border-border rounded-xl space-y-3">
                   <div>
                     <label className="label">New Email Address</label>
                     <input
                       type="email"
                       value={newEmail}
                       onChange={(e) => setNewEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitEmailChange(e as any); } }}
                       placeholder="new@email.com"
                       className="input"
-                      required
                       autoFocus
                     />
                   </div>
@@ -226,12 +228,12 @@ export default function SettingsPage() {
                     </p>
                   )}
                   <div className="flex gap-2">
-                    <button type="submit" disabled={submittingEmail || !newEmail.trim()} className="btn-primary text-sm flex-1 disabled:opacity-50">
+                    <button type="button" onClick={submitEmailChange} disabled={submittingEmail || !newEmail.trim()} className="btn-primary text-sm flex-1 disabled:opacity-50">
                       {submittingEmail ? "Submitting…" : isAdminOrManager ? "Update Email" : "Request Change"}
                     </button>
                     <button type="button" onClick={() => { setShowEmailChange(false); setNewEmail(""); }} className="btn-ghost text-sm flex-1">Cancel</button>
                   </div>
-                </form>
+                </div>
               )}
             </div>
             <div>
