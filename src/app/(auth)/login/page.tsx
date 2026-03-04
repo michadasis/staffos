@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [showResendVerify, setShowResendVerify] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +38,9 @@ export default function LoginPage() {
       await login(email, password, twoFactorCode || undefined);
       toast.success("Welcome back!");
     } catch (err: any) {
-      toast.error(err.message || "Login failed");
+      const msg = err.message || "Login failed";
+      if (msg.includes("verify your email")) setShowResendVerify(true);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -145,7 +148,15 @@ export default function LoginPage() {
       {!requiresTwoFactor && (
         <p className="text-center text-sm text-text-muted mt-6">
           Need an account?{" "}
-          <Link href="/register" className="text-accent hover:underline font-medium">Register here</Link>
+          {showResendVerify && (
+          <div className="text-center text-xs text-text-muted">
+            Didn't get the email?{" "}
+            <Link href="/verify-email" className="text-accent hover:underline font-semibold">
+              Resend verification link
+            </Link>
+          </div>
+        )}
+        <Link href="/register" className="text-accent hover:underline font-medium">Register here</Link>
         </p>
       )}
     </div>

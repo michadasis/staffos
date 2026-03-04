@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return err("Invalid credentials", 401);
 
+    if (user.status === "UNVERIFIED") {
+      return err("Please verify your email address before logging in. Check your inbox for the verification link.", 403);
+    }
     if (user.status === "PENDING") {
       return err("Your account is awaiting admin approval.", 403);
     }

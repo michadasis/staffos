@@ -166,3 +166,25 @@ export async function sendTwoFactorChangedEmail(to: string, name: string, enable
     ${p(`<span style="font-size:12px;color:#64748b">Changed at: ${new Date().toLocaleString()}</span>`)}
   `));
 }
+
+export async function sendVerificationEmail(to: string, name: string, token: string) {
+  const url = `${APP_URL}/verify-email?token=${token}`;
+  await send(to, "Verify your StaffOS email address", layout(`
+    ${h1("Verify your email")}
+    ${p(`Hello ${name}, thanks for registering. Please verify your email address to continue.`)}
+    ${p("This link expires in 24 hours.")}
+    ${btn("Verify Email Address", url, "#22c55e")}
+    ${divider()}
+    ${p(`<span style="font-size:11px;color:#64748b">Or paste this link into your browser:<br><a href="${url}" style="color:#3b82f6;word-break:break-all">${url}</a></span>`)}
+  `));
+}
+
+export async function sendResendVerificationEmail(to: string, name: string, token: string) {
+  const url = `${APP_URL}/verify-email?token=${token}`;
+  await send(to, "New verification link for StaffOS", layout(`
+    ${h1("New verification link")}
+    ${p(`Hello ${name}, here is your new email verification link.`)}
+    ${p("This link expires in 24 hours.")}
+    ${btn("Verify Email Address", url, "#22c55e")}
+  `));
+}

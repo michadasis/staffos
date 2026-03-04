@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { ok, err } from "@/lib/response";
+import { sendVerificationEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +16,8 @@ export async function POST(req: NextRequest) {
     if (existing) return err("An account with this email already exists", 409);
 
     const hashed = await bcrypt.hash(password, 12);
+    const verifyToken = crypto.randomBytes(32).toString("hex");
+    const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     await prisma.user.create({
       data: {
@@ -21,7 +25,10 @@ export async function POST(req: NextRequest) {
         password: hashed,
         name: name.trim(),
         role: "STAFF",
-        status: "PENDING",
+        status: "UNVERIFIED",
+        emailVerified: false,
+        verifyToken,
+        verifyTokenExpiry,
         employee: {
           create: {
             jobTitle: jobTitle || null,
@@ -32,7 +39,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return ok({ message: "Registration submitted. Please wait for admin approval before logging in." }, 201);
+    sendVerificationEmail(email.toLowerCase().trim(), name.trim(), verifyToken)
+      .catch((e) => console.error("[email error]", e.message));
+
+    return ok({ message: "Registration submitted. Please check your email to verify your address." }, 201);
   } catch (e) {
     console.error(e);
     return err("Internal server error", 500);
