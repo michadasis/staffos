@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getTokenFromRequest } from "@/lib/auth";
 import { verifyToken } from "@/lib/jwt";
 import { ok, err } from "@/lib/response";
+import { sendNewMessageEmail } from "@/lib/email";
 
 // GET /api/messages - get all conversations (inbox)
 export async function GET(req: NextRequest) {
@@ -53,9 +54,14 @@ export async function POST(req: NextRequest) {
     data: { senderId: payload.userId, receiverId, content },
     include: {
       sender: { select: { id: true, name: true, avatar: true } },
-      receiver: { select: { id: true, name: true, avatar: true } },
+      receiver: { select: { id: true, name: true, avatar: true, email: true } },
     },
   });
+
+  // Send email notification (fire-and-forget)
+  if (message.receiver?.email) {
+    sendNewMessageEmail(message.receiver.email, message.sender.name, content).catch((e) => console.error("[email error]", e.message));
+  }
 
   return ok(message, 201);
 }

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getTokenFromRequest } from "@/lib/auth";
 import { verifyToken } from "@/lib/jwt";
 import { ok, err, paginated } from "@/lib/response";
+import { sendTaskAssignedEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   const token = getTokenFromRequest(req);
@@ -72,6 +73,18 @@ export async function POST(req: NextRequest) {
       _count: { select: { comments: true } },
     },
   });
+
+  // Email the assignee
+  if (task.assignee?.user?.email) {
+    sendTaskAssignedEmail(
+      task.assignee.user.email,
+      task.assignee.user.name,
+      task.title,
+      task.id,
+      task.deadline,
+      task.priority,
+    ).catch((e) => console.error("[email error]", e.message));
+  }
 
   return ok(task, 201);
 }
