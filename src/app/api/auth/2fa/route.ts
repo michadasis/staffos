@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server";
 import speakeasy from "speakeasy";
-import QRCode from "qrcode";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const QRCode = require("qrcode") as typeof import("qrcode");
 import prisma from "@/lib/prisma";
 import { getTokenFromRequest } from "@/lib/auth";
 import { verifyToken } from "@/lib/jwt";
 import { ok, err } from "@/lib/response";
+import { sendTwoFactorChangedEmail } from "@/lib/email";
 
 // GET — generate a new secret + QR code for setup
 export async function GET(req: NextRequest) {
@@ -61,6 +63,7 @@ export async function POST(req: NextRequest) {
   await prisma.auditLog.create({
     data: { userId: user.id, action: "ENABLE_2FA", entity: "User", entityId: user.id },
   });
+  sendTwoFactorChangedEmail(user.email, user.name, true).catch(() => {});
   return ok({ message: "2FA enabled successfully" });
 }
 
@@ -90,5 +93,6 @@ export async function DELETE(req: NextRequest) {
   await prisma.auditLog.create({
     data: { userId: user.id, action: "DISABLE_2FA", entity: "User", entityId: user.id },
   });
+  sendTwoFactorChangedEmail(user.email, user.name, false).catch(() => {});
   return ok({ message: "2FA disabled successfully" });
 }
