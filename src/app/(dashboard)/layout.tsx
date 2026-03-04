@@ -275,8 +275,9 @@ function NotificationBell() {
 
 function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const pageTitle = NAV_ALL.find((n) => pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href)))?.label || "Dashboard";
 
   return (
@@ -291,13 +292,31 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           <input placeholder="Quick search…" className="bg-transparent outline-none text-text-main text-xs w-32 placeholder-text-muted" />
         </div>
         <NotificationBell />
-        {/* Desktop: plain avatar. Mobile: avatar taps to settings */}
+        {/* Desktop: plain avatar. Mobile: avatar opens mini menu */}
         {user && (
           <>
             <span className="hidden md:block"><Avatar name={user.name} size={32} /></span>
-            <button className="md:hidden" onClick={() => router.push("/settings")} title="Settings">
-              <Avatar name={user.name} size={32} />
-            </button>
+            <div className="md:hidden relative">
+              <button onClick={() => setShowMobileMenu((v) => !v)} title="Menu">
+                <Avatar name={user.name} size={32} />
+              </button>
+              {showMobileMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowMobileMenu(false)} />
+                  <div className="absolute right-0 top-10 z-50 bg-surface border border-border rounded-xl shadow-xl overflow-hidden w-44">
+                    <button onClick={() => { router.push("/settings"); setShowMobileMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[13px] text-text-soft hover:bg-surface-alt transition-colors">
+                      ⚙️ Settings
+                    </button>
+                    <div className="h-px bg-border" />
+                    <button onClick={() => { logout(); toast.success("Signed out"); setShowMobileMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[13px] text-danger hover:bg-danger/10 transition-colors">
+                      ↩ Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
