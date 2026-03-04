@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import speakeasy from "speakeasy";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const QRCode = require("qrcode") as typeof import("qrcode");
+import QRCode from "qrcode";
 import prisma from "@/lib/prisma";
 import { getTokenFromRequest } from "@/lib/auth";
 import { verifyToken } from "@/lib/jwt";
