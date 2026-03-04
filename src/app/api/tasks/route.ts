@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     },
     include: {
       department: true,
-      assignee: { include: { user: { select: { name: true, avatar: true } } } },
+      assignee: { include: { user: { select: { name: true, avatar: true, email: true } } } },
       createdBy: { include: { user: { select: { name: true } } } },
       _count: { select: { comments: true } },
     },
