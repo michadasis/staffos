@@ -68,14 +68,14 @@ export async function POST(req: NextRequest) {
     },
     include: {
       department: true,
-      assignee: { include: { user: { select: { name: true, avatar: true, email: true } } } },
+      assignee: { include: { user: { select: { name: true, avatar: true, email: true, notifTaskAssigned: true } } } },
       createdBy: { include: { user: { select: { name: true } } } },
       _count: { select: { comments: true } },
     },
   });
 
-  // Email the assignee
-  if (task.assignee?.user?.email) {
+  // Email the assignee — respect user pref
+  if (task.assignee?.user?.email && task.assignee.user.notifTaskAssigned) {
     sendTaskAssignedEmail(
       task.assignee.user.email,
       task.assignee.user.name,

@@ -54,12 +54,12 @@ export async function POST(req: NextRequest) {
     data: { senderId: payload.userId, receiverId, content },
     include: {
       sender: { select: { id: true, name: true, avatar: true } },
-      receiver: { select: { id: true, name: true, avatar: true, email: true } },
+      receiver: { select: { id: true, name: true, avatar: true, email: true, notifNewMessage: true } },
     },
   });
 
-  // Send email notification (fire-and-forget)
-  if (message.receiver?.email) {
+  // Send email notification (fire-and-forget) — respect user pref
+  if (message.receiver?.email && message.receiver?.notifNewMessage) {
     sendNewMessageEmail(message.receiver.email, message.sender.name, content).catch((e) => console.error("[email error]", e.message));
   }
 

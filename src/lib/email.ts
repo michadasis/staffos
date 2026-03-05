@@ -201,3 +201,78 @@ export async function sendEmailChangeConfirmationEmail(to: string, name: string,
   `));
 }
 // email helpers
+
+export async function sendAnnouncementEmail(to: string, name: string, subject: string, body: string, senderName: string) {
+  await send(to, `[Announcement] ${subject}`, layout(`
+    ${h1(subject)}
+    ${p(`Hello ${name}, you have a new announcement from <strong style="color:#f1f5f9">${senderName}</strong>.`)}
+    ${divider()}
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px 24px;margin:16px 0">
+      <p style="margin:0;font-size:14px;color:#cbd5e1;line-height:1.7;white-space:pre-wrap">${body.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+    </div>
+    ${divider()}
+    ${p(`<span style="font-size:11px;color:#475569">You received this because you have team announcements enabled. You can turn this off in your notification settings.</span>`)}
+  `));
+}
+
+export async function sendWeeklyDigestEmail(to: string, name: string, stats: {
+  overdueCount: number;
+  inProgressCount: number;
+  pendingCount: number;
+  completedThisWeek: number;
+  unreadMessages: number;
+  overdueTasks: { title: string; deadline: Date | null; priority: string }[];
+}) {
+  const { overdueCount, inProgressCount, pendingCount, completedThisWeek, unreadMessages, overdueTasks } = stats;
+
+  const statBox = (value: number, label: string, color: string) =>
+    `<td style="text-align:center;padding:16px 12px;background:#0f172a;border:1px solid #334155;border-radius:12px">
+      <div style="font-size:28px;font-weight:800;color:${color}">${value}</div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px">${label}</div>
+    </td>`;
+
+  const overdueRows = overdueTasks.map(t =>
+    `<tr>
+      <td style="padding:8px 12px;font-size:12px;color:#f1f5f9;border-bottom:1px solid #1e293b">${t.title}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#ef4444;border-bottom:1px solid #1e293b">${t.deadline ? new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "No deadline"}</td>
+    </tr>`
+  ).join("");
+
+  const now = new Date();
+  const weekLabel = `${now.toLocaleDateString("en-US", { month: "long", day: "numeric" })} week`;
+
+  await send(to, `Your weekly digest - ${weekLabel}`, layout(`
+    ${h1("Your weekly digest")}
+    ${p(`Hello ${name}, here is a summary of your activity this week.`)}
+    ${divider()}
+    <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:separate;border-spacing:8px">
+      <tr>
+        ${statBox(completedThisWeek, "Completed", "#22c55e")}
+        ${statBox(inProgressCount, "In Progress", "#3b82f6")}
+        ${statBox(pendingCount, "Pending", "#eab308")}
+        ${statBox(overdueCount, "Overdue", "#ef4444")}
+      </tr>
+    </table>
+    ${unreadMessages > 0 ? `
+    ${divider()}
+    <div style="background:#1e293b;border:1px solid #3b82f620;border-radius:12px;padding:14px 20px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:20px">💬</span>
+      <span style="font-size:13px;color:#94a3b8">You received <strong style="color:#f1f5f9">${unreadMessages}</strong> message${unreadMessages !== 1 ? "s" : ""} this week</span>
+    </div>` : ""}
+    ${overdueCount > 0 ? `
+    ${divider()}
+    <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#ef4444">Overdue tasks</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border:1px solid #334155;border-radius:12px;overflow:hidden">
+      <thead><tr style="background:#1a2540">
+        <th style="padding:8px 12px;font-size:11px;color:#64748b;text-align:left;font-weight:700;text-transform:uppercase">Task</th>
+        <th style="padding:8px 12px;font-size:11px;color:#64748b;text-align:left;font-weight:700;text-transform:uppercase">Deadline</th>
+      </tr></thead>
+      <tbody>${overdueRows}</tbody>
+    </table>` : ""}
+    ${divider()}
+    ${btn("View My Tasks", `${APP_URL}/tasks`)}
+    ${divider()}
+    ${p(`<span style="font-size:11px;color:#475569">You received this weekly digest because you have it enabled. You can turn it off in your notification settings.</span>`)}
+  `));
+}
+// email helpers

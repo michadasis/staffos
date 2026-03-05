@@ -55,6 +55,10 @@ model User {
   pendingEmail          String?
   emailChangeToken      String?  @unique
   emailChangeTokenExpiry DateTime?
+  notifTaskAssigned    Boolean @default(true)
+  notifNewMessage      Boolean @default(true)
+  notifAnnouncements   Boolean @default(true)
+  notifWeeklyDigest    Boolean @default(true)
   avatar       String?
   refreshToken String?  @db.Text
   createdAt    DateTime @default(now())

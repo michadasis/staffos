@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import toast from "react-hot-toast";
 
@@ -13,6 +13,52 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [showEmailChange, setShowEmailChange] = useState(false);
+  // Notification prefs
+  const [notifPrefs, setNotifPrefs] = useState({ notifTaskAssigned: true, notifNewMessage: true, notifAnnouncements: true, notifWeeklyDigest: true });
+  const [savingNotif, setSavingNotif] = useState(false);
+  // Announcement composer (admin/manager only)
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const [announcement, setAnnouncement] = useState({ subject: "", body: "" });
+  const [sendingAnnouncement, setSendingAnnouncement] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/notification-prefs")
+      .then(r => r.json())
+      .then(({ data }) => { if (data) setNotifPrefs(data); })
+      .catch(() => {});
+  }, []);
+
+  const toggleNotif = async (key: keyof typeof notifPrefs) => {
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(updated);
+    setSavingNotif(true);
+    try {
+      await fetch("/api/auth/notification-prefs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: updated[key] }),
+      });
+    } catch { toast.error("Failed to save preference"); }
+    finally { setSavingNotif(false); }
+  };
+
+  const sendAnnouncement = async () => {
+    if (!announcement.subject.trim() || !announcement.body.trim()) return toast.error("Subject and body are required");
+    setSendingAnnouncement(true);
+    try {
+      const res = await fetch("/api/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(announcement),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(json.data.message);
+      setAnnouncement({ subject: "", body: "" });
+      setShowAnnouncement(false);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setSendingAnnouncement(false); }
+  };
   const [submittingEmail, setSubmittingEmail] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
   const [showCurrent, setShowCurrent] = useState(false);
@@ -397,26 +443,76 @@ export default function SettingsPage() {
       )}
 
       {tab === "notifications" && (
-        <div className="card p-6 space-y-4">
-          <h3 className="text-[14px] font-bold text-text-main">Notification Preferences</h3>
-          {[
-            ["Task assignments", "Get notified when a task is assigned to you"],
-            ["Task status updates", "When tasks you created are updated"],
-            ["New messages", "When you receive a direct message"],
-            ["Team announcements", "Company-wide notifications"],
-            ["Weekly digest", "Summary of your team's activity"],
-          ].map(([label, desc]) => (
-            <div key={label as string} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-              <div>
-                <div className="text-[13px] font-semibold text-text-main">{label}</div>
-                <div className="text-[11px] text-text-muted">{desc}</div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" defaultChecked className="sr-only peer" />
-                <div className="w-10 h-5 bg-border rounded-full peer peer-checked:bg-accent transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
-              </label>
+        <div className="space-y-5">
+          <div className="card p-6 space-y-1">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[14px] font-bold text-text-main">Notification Preferences</h3>
+              {savingNotif && <span className="text-[11px] text-text-muted animate-pulse">Saving…</span>}
             </div>
-          ))}
+            {([
+              { key: "notifTaskAssigned", label: "Task assignments", desc: "Get notified when a task is assigned to you" },
+              { key: "notifNewMessage", label: "New messages", desc: "When you receive a direct message" },
+              { key: "notifAnnouncements", label: "Team announcements", desc: "Company-wide notifications from admins" },
+              { key: "notifWeeklyDigest", label: "Weekly digest", desc: "A Monday morning summary of your tasks and activity" },
+            ] as const).map(({ key, label, desc }) => (
+              <div key={key} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                <div>
+                  <div className="text-[13px] font-semibold text-text-main">{label}</div>
+                  <div className="text-[11px] text-text-muted">{desc}</div>
+                </div>
+                <button
+                  onClick={() => toggleNotif(key)}
+                  className={`relative inline-flex items-center w-10 h-5 rounded-full transition-colors flex-shrink-0 ${notifPrefs[key] ? "bg-accent" : "bg-border"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${notifPrefs[key] ? "translate-x-5" : "translate-x-0"}`} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {isAdminOrManager && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-[14px] font-bold text-text-main">Send Announcement</h3>
+                  <p className="text-[11px] text-text-muted mt-0.5">Email all staff who have team announcements enabled</p>
+                </div>
+                <button onClick={() => setShowAnnouncement(v => !v)} className="btn-primary text-sm px-4">
+                  {showAnnouncement ? "Cancel" : "Compose"}
+                </button>
+              </div>
+              {showAnnouncement && (
+                <div className="mt-4 space-y-3 border-t border-border pt-4">
+                  <div>
+                    <label className="label">Subject</label>
+                    <input
+                      value={announcement.subject}
+                      onChange={e => setAnnouncement(a => ({ ...a, subject: e.target.value }))}
+                      placeholder="e.g. Office closed Friday"
+                      className="input w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Message</label>
+                    <textarea
+                      value={announcement.body}
+                      onChange={e => setAnnouncement(a => ({ ...a, body: e.target.value }))}
+                      placeholder="Write your announcement here…"
+                      rows={5}
+                      className="input w-full resize-none"
+                    />
+                  </div>
+                  <button
+                    onClick={sendAnnouncement}
+                    disabled={sendingAnnouncement || !announcement.subject.trim() || !announcement.body.trim()}
+                    className="btn-primary w-full disabled:opacity-50"
+                  >
+                    {sendingAnnouncement ? "Sending…" : "Send to All Staff"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
