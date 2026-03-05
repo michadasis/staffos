@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 12);
     const verifyToken = crypto.randomBytes(32).toString("hex");
-    const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+    const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await prisma.user.create({
       data: {
@@ -39,12 +39,15 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    sendVerificationEmail(email.toLowerCase().trim(), name.trim(), verifyToken)
-      .catch((e) => console.error("[email error]", e.message));
+    const sent = await sendVerificationEmail(email.toLowerCase().trim(), name.trim(), verifyToken)
+      .then(() => true)
+      .catch((e) => { console.error("[email error] verification:", e.message); return false; });
+
+    console.log(`[register] user created: ${email}, verification email sent: ${sent}`);
 
     return ok({ message: "Registration submitted. Please check your email to verify your address." }, 201);
   } catch (e) {
-    console.error(e);
+    console.error("[register] error:", e);
     return err("Internal server error", 500);
   }
 }

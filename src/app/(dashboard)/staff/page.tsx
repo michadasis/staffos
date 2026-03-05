@@ -281,6 +281,21 @@ export default function StaffPage() {
     finally { setSaving(false); }
   };
 
+  const handleResendVerification = async (userId: number) => {
+    setApprovingId(userId);
+    try {
+      const res = await fetch("/api/staff/pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success("Verification email resent!");
+    } catch (err: any) { toast.error(err.message); }
+    finally { setApprovingId(null); }
+  };
+
   const handleApproval = async (userId: number, action: "approve" | "reject") => {
     setApprovingId(userId);
     try {
