@@ -53,7 +53,7 @@ export default function BackupPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h2 className="text-xl font-extrabold text-text-main">Data Backup</h2>
         <p className="text-xs text-text-muted mt-0.5">Export your data for safekeeping or migration. Only admins can create backups.</p>

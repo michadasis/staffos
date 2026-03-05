@@ -164,7 +164,7 @@ export default function SettingsPage() {
   const strength = pwStrength(pwForm.newPassword);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-6 mx-auto">
       <div>
         <h2 className="text-xl font-extrabold text-text-main">Settings</h2>
         <p className="text-xs text-text-muted mt-0.5">Manage your account and preferences</p>

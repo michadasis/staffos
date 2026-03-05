@@ -264,7 +264,7 @@ export default function ReportsPage() {
   const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
 
   return (
-    <div className="max-w-7xl space-y-5">
+    <div className="w-full space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>

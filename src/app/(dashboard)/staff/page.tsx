@@ -333,7 +333,7 @@ export default function StaffPage() {
   // ── render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-7xl space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-extrabold text-text-main">Staff Directory</h2>

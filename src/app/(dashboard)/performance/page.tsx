@@ -66,7 +66,7 @@ export default function PerformancePage() {
   );
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h2 className="text-xl font-extrabold text-text-main">Performance Overview</h2>
         <p className="text-xs text-text-muted mt-0.5">Staff productivity and task completion analytics</p>

@@ -110,7 +110,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl">
+    <div className="w-full space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold text-text-main tracking-tight">

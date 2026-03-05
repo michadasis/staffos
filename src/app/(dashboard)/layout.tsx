@@ -369,7 +369,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <TopBar onMenuClick={handleMenuClick} />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-bg pb-24 md:pb-6">
-          <RoleGuard>{children}</RoleGuard>
+          <div className="w-full max-w-[1600px] mx-auto">
+            <RoleGuard>{children}</RoleGuard>
+          </div>
         </main>
       </div>
 

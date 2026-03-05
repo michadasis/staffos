@@ -79,7 +79,7 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="max-w-7xl space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-extrabold text-text-main">Audit Logs</h2>
