@@ -1,17 +1,6 @@
-# StaffOS — Staff Management Platform
+# StaffOS - Staff Management Platform
 
 A full stack staff management system, designed for teams to manage employees, tasks, performance, and internal communications from a single interface.
-
----
-
-## Tech Stack
-
-- **Framework:** Next.js 15 (App Router)
-- **Database:** MySQL via Prisma ORM
-- **Auth:** JWT with httpOnly cookies + optional TOTP two factor authentication
-- **Styling:** Tailwind CSS (dark theme)
-
----
 
 ## Quick Start
 
@@ -31,32 +20,49 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` with your settings:
 
 ```env
 DATABASE_URL="mysql://root:yourpassword@localhost:3306/staffos"
 
-# Generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-JWT_SECRET="your-64-char-random-secret"
+# Generate a secure secret:
+# node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+JWT_SECRET="your-super-long-random-secret-here"
 
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NEXT_PUBLIC_APP_NAME="StaffOS"
+
+# Gmail credentials for email notifications
+GMAIL_USER="yourgmail@gmail.com"
+GMAIL_APP_PASSWORD="your-16-char-app-password"
 ```
 
 ### 3. Set Up the Database
 
+Create the MySQL database:
+
+```sql
+CREATE DATABASE staffos;
+```
+
+Push the Prisma schema:
+
 ```bash
-# Create the database (MySQL)
-mysql -u root -p -e "CREATE DATABASE staffos;"
-
-# Push schema
 npm run db:push
+```
 
-# Seed demo data
+Seed with demo data:
+
+```bash
 npm run db:seed
 ```
 
-### 4. Start the Dev Server
+### 4. Generate Prisma Client
+
+```bash
+npm run db:generate
+```
+
+### 5. Run the Dev Server
 
 ```bash
 npm run dev
@@ -68,11 +74,96 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Demo Accounts
 
-| Role    | Email                  | Password  |
-|---------|------------------------|-----------|
-| Admin   | admin@staffos.com      | Admin@123 |
-| Staff   | a.chen@staffos.com     | Staff@123 |
-| Staff   | m.williams@staffos.com | Staff@123 |
+| Role  | Email                  | Password  |
+|-------|------------------------|-----------|
+| Admin | admin@staffos.com      | Admin@123 |
+| Staff | a.chen@staffos.com     | Staff@123 |
+| Staff | m.williams@staffos.com | Staff@123 |
+
+---
+
+## Features
+
+### Authentication and Security
+
+- JWT authentication stored in httpOnly cookies
+- Role based access control with three roles: Admin, Manager, and Staff
+- Two factor authentication via TOTP (Google Authenticator compatible)
+- Email verification on registration
+- Passwords hashed with bcrypt (12 rounds)
+- Full audit logging for all sensitive actions
+- Middleware-based route protection
+
+### Registration Flow
+
+New users register and receive a verification email. Once they verify their address the account moves to pending, and an admin receives a notification to approve or reject it. Admins can also resend the verification email to users who did not receive it. Approving a user bypasses any remaining verification steps and activates the account immediately.
+
+### Staff Management
+
+- Full staff directory with search and department filtering
+- Add, edit, and delete employees
+- Role changes including demotion from Admin to Manager or Manager to Staff
+- Department assignment and supervisor assignment
+- Staff profile with tabbed sections for Profile, Documents, and Work History
+
+### Work History
+
+Each staff member has a work history timeline that records role changes, department transfers, status changes, job title changes, and the date they joined. Entries are recorded automatically when an admin edits a staff member. Admins and managers can also add manual entries such as notes, promotions, or off-system events. Admins can delete individual entries.
+
+### Document Management
+
+Admins and managers can upload documents against any staff member (PDF, Word, images, Excel, ZIP, up to 10MB). Documents are stored as base64 in the database with no external storage dependency. Staff can view and download their own documents.
+
+### Task Management
+
+- Create, edit, and delete tasks with title, description, priority, deadline, and assignee
+- Task statuses: Pending, In Progress, Completed, Cancelled
+- Priority levels: Low, Medium, High, Critical
+- List view and Kanban board view
+- Task discussions with file attachments
+- Overdue task detection
+
+### Messaging
+
+- Direct messages between users
+- Conversation list with unread counts
+- Full message history per conversation
+- Send on Enter with mobile-compatible input
+
+### Performance and Reports
+
+- Performance analytics per employee
+- Reports page with four tabs: Overview, Staff, Tasks, and Departments
+- Period filtering: daily, weekly, and monthly
+- Export to Excel (multi-sheet workbook) or PDF (branded multi-page layout)
+
+### Email Notifications
+
+Emails are sent via Gmail using Nodemailer. Notifications are sent for the following events:
+
+- New direct message received
+- Task assigned
+- New registration pending admin approval
+- Registration approved or rejected
+- Email change request submitted (notifies admins and managers)
+- Email change confirmation (sent to new address before applying)
+- Password changed
+- Two-factor authentication enabled or disabled
+
+### Settings
+
+- Update display name and job title
+- Change email address with confirmation link sent to new address before applying
+- Change password with strength indicator
+- Enable or disable two-factor authentication
+
+### Admin Controls
+
+- Approve or reject new user registrations
+- Resend verification emails to unverified users
+- Approve or reject email change requests from staff
+- Data backup with JSON and CSV export of all records
+- Full audit log viewer
 
 ---
 
@@ -80,152 +171,86 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ```
 src/
-├── app/
-│   ├── (auth)/
-│   │   ├── login/
-│   │   └── register/
-│   ├── (dashboard)/
-│   │   ├── layout.tsx              # Sidebar + topbar + mobile bottom nav
-│   │   ├── dashboard/              # Stats overview
-│   │   ├── staff/                  # Employee directory + CRUD + approvals
-│   │   ├── tasks/                  # Task management + kanban + comments + files
-│   │   ├── performance/            # Completion rate analytics
-│   │   ├── messages/               # Direct messaging
-│   │   ├── reports/                # Reports + CSV export
-│   │   └── settings/               # Profile, password, email change, 2FA
-│   └── api/
-│       ├── auth/
-│       │   ├── login/              # Login with optional 2FA challenge
-│       │   ├── logout/
-│       │   ├── register/           # Registration (pending admin approval)
-│       │   ├── me/
-│       │   ├── change-password/
-│       │   ├── email-change/       # Email change requests and approval
-│       │   └── 2fa/                # 2FA setup, enable, disable
-│       ├── staff/
-│       │   └── pending/            # Pending registration approvals
-│       ├── tasks/
-│       │   └── [id]/comments/      # Task comments and file attachments
-│       ├── messages/
-│       ├── departments/
-│       ├── dashboard/
-│       ├── notifications/
-│       └── reports/
-├── components/
-│   └── AuthProvider.tsx            # JWT auth context and user state
-├── lib/
-│   ├── prisma.ts
-│   ├── jwt.ts                      # Token sign/verify (jose)
-│   ├── auth.ts
-│   └── response.ts
-├── middleware.ts                    # Edge-compatible route protection
-└── types/index.ts
+  app/
+    (auth)/
+      login/                  Login page
+      register/               Registration page
+      verify-email/           Email verification landing page
+      confirm-email-change/   Email change confirmation page
+    (dashboard)/
+      layout.tsx              Sidebar, topbar, and mobile navigation
+      dashboard/              Main dashboard with live stats
+      staff/                  Staff directory with profile modals
+      tasks/                  Task management (list and kanban)
+      performance/            Performance analytics
+      messages/               Internal messaging
+      reports/                Reports with PDF and Excel export
+      settings/               User settings and security
+      audit-logs/             Audit trail viewer
+      backup/                 Data backup and export
+    api/
+      auth/                   login, logout, register, me, 2fa, verify-email,
+                              email-change, confirm-email-change, change-password
+      staff/                  CRUD employees, pending approvals, documents,
+                              work history
+      tasks/                  CRUD tasks and comments
+      messages/               Messaging system
+      departments/            Department management
+      dashboard/              Stats aggregation
+      reports/                Report data and generation
+  components/
+    AuthProvider.tsx          JWT auth context
+  lib/
+    prisma.ts                 Prisma client singleton
+    jwt.ts                    JWT sign and verify
+    auth.ts                   Cookie helpers
+    email.ts                  Nodemailer email templates and sending
+    response.ts               API response helpers
+  middleware.ts               Route protection
 
 prisma/
-├── schema.prisma                   # Full 12-table schema
-└── seed.js
+  schema.prisma               Full database schema
+  seed.js                     Demo data seeder
 ```
 
 ---
 
 ## Database Schema
 
-| Table               | Description                                                       |
-|---------------------|-------------------------------------------------------------------|
-| User                | Accounts with email, hashed password, 2FA fields, account status |
-| Employee            | Staff profiles linked to users                                    |
-| Department          | Organisational departments                                        |
-| Task                | Tasks with status, priority, deadline                             |
-| TaskComment         | Threaded comments with optional file attachments                  |
-| Message             | Direct messages between users                                     |
-| ActivityLog         | Per employee activity history                                     |
-| PerformanceReport   | Monthly performance snapshots                                     |
-| AuditLog            | Security audit trail                                              |
-| Document            | Employee document storage                                         |
-| EmailChangeRequest  | Pending email change requests submitted by staff                  |
+| Table              | Description                                       |
+|--------------------|---------------------------------------------------|
+| User               | Accounts with email, hashed password, and status  |
+| Employee           | Staff profiles linked to users                    |
+| Department         | Organisational departments                        |
+| Task               | Tasks with status, priority, and deadline         |
+| TaskComment        | Comments and file attachments on tasks            |
+| Message            | Direct messages between users                     |
+| ActivityLog        | Per employee activity log                         |
+| WorkHistory        | Timeline of role and status changes per employee  |
+| PerformanceReport  | Monthly performance snapshots                     |
+| AuditLog           | Security and admin action audit trail             |
+| Document           | Employee document storage (base64)                |
+| EmailChangeRequest | Pending email change requests for staff           |
 
 ---
 
-## Auth and Security
+## Auth Flow
 
-- JWT stored in an `httpOnly` cookie (`staffos_token`)
-- Middleware uses `jose` for edge-compatible token verification
-- Token expires in 7 days
-- Passwords hashed with bcrypt (12 rounds)
-- Role hierarchy: `ADMIN` > `MANAGER` > `STAFF`
-- Self-registration locked to `STAFF` role and requires admin approval before the account can be used
-- Optional TOTP two factor authentication via Google Authenticator, Authy, or any TOTP-compatible app
-- Account statuses: `PENDING`, `ACTIVE`, `REJECTED`
+- JWT stored in an httpOnly cookie named `staffos_token`
+- Next.js middleware protects all dashboard routes
+- Token expires in 7 days (configurable via `JWT_EXPIRES_IN`)
+- Role hierarchy: Admin has full access, Manager can manage staff and tasks, Staff has read access to their own data
 
 ---
 
-## Role Permissions
+## Email Setup (Gmail)
 
-| Feature                        | Admin | Manager | Staff    |
-|-------------------------------|-------|---------|----------|
-| View all staff                 | Yes   | Yes     | No       |
-| Add / edit staff               | Yes   | Yes     | No       |
-| Delete staff                   | Yes   | No      | No       |
-| Approve registrations          | Yes   | No      | No       |
-| Approve email changes          | Yes   | Yes     | No       |
-| Create / delete tasks          | Yes   | Yes     | No       |
-| View all tasks                 | Yes   | Yes     | Own only |
-| Task discussions and files     | Yes   | Yes     | Yes      |
-| Performance page               | Yes   | Yes     | No       |
-| Reports page                   | Yes   | Yes     | No       |
-| Change own password            | Yes   | Yes     | Yes      |
-| Change own email directly      | Yes   | Yes     | No       |
-| Request email change           | Yes   | Yes     | Yes      |
-| Enable / disable 2FA           | Yes   | Yes     | Yes      |
+1. Create or use a personal Gmail account
+2. Enable two step verification on the account
+3. Go to myaccount.google.com/apppasswords and generate an app password named StaffOS
+4. Add `GMAIL_USER` and `GMAIL_APP_PASSWORD` to your environment variables
+5. Set `NEXT_PUBLIC_APP_URL` to your production domain so email links resolve correctly
 
----
-
-## Features
-
-**Authentication and Access**
-- JWT authentication with httpOnly cookies
-- Role-based access control enforced at both the UI and API layers
-- Registration approval flow, new accounts are created with a PENDING status and cannot log in until an admin approves them
-- Optional two factor authentication using TOTP with QR code setup, compatible with any authenticator app
-- Email change requests for staff members, requiring admin or manager approval before the change is applied
-- Admins and managers can update their own email directly without an approval step
-
-**Staff Management**
-- Employee directory with full create, read, update, delete
-- Pending registration queue at the top of the Staff page with approve and reject actions
-- Pending email change queue visible to admins and managers
-- Task completion progress bar per employee card, calculated from live data
-
-**Task Management**
-- Card-based list view with a coloured priority indicator on each card and automatic overdue detection
-- Kanban board view that stacks vertically on mobile and displays as a 3 column grid on desktop
-- Full task editing including assignee, priority, status, department, and deadline
-- Threaded discussion panel per task with comment count
-- File attachments in discussions, images render inline with a tap-to-fullscreen lightbox, other file types display as a labelled download card (5MB limit per file, stored as base64 in the database)
-
-**Notifications**
-- Notification bell in the topbar polling every 30 seconds
-- Surfaces unread messages, overdue tasks, newly assigned tasks, pending registrations, and pending email change requests
-
-**Messaging**
-- Direct messages between any two users
-- Mobile layout: full screen conversation list with a separate chat view and a back button to return to the list
-
-**Analytics**
-- Dashboard with real company wide stats for admins and managers, personal task summary for staff
-- Performance page with per employee and per department completion rates from live data
-- Reports page with real department stats and CSV export
-
-**Settings**
-- Profile editing for name and job title
-- Password change with a live strength indicator and show/hide toggle
-- Email change with a role aware flow (direct for admins and managers, request based for staff)
-- Two factor authentication with QR code setup and code confirmed disable
-
-**Responsive Design**
-- Bottom navigation bar on mobile replacing the sidebar
-- Collapsible sidebar on desktop
-- Profile avatar in the topbar opens a Settings and Log Out menu on mobile
-- All pages adapted for small screens including messages, tasks, staff directory, and the kanban board
+To verify the connection is working, visit `/api/test-email` while logged in as an admin.
 
 ---
