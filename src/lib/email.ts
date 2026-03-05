@@ -200,3 +200,4 @@ export async function sendEmailChangeConfirmationEmail(to: string, name: string,
     ${p(`<span style="font-size:11px;color:#64748b">Or paste this link: <a href="${url}" style="color:#3b82f6;word-break:break-all">${url}</a></span>`)}
   `));
 }
+//I'm adding this so vercel is forced to redeploy, hey don't ask me I'm running on assumptions over here.
