@@ -192,7 +192,7 @@ export default function SettingsPage() {
     finally { setSubmittingEmail(false); }
   };
 
-  const tabs = [
+  const tabs: { id: "profile" | "security" | "notifications" | "system"; label: string }[] = [
     { id: "profile", label: "Profile" },
     { id: "security", label: "Security" },
     { id: "notifications", label: "Notifications" },
