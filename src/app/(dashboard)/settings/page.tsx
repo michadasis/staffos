@@ -196,7 +196,7 @@ export default function SettingsPage() {
     { id: "profile", label: "Profile" },
     { id: "security", label: "Security" },
     { id: "notifications", label: "Notifications" },
-    ...(user?.role === "ADMIN" ? [{ id: "system", label: "System" }] : []),
+    ...(user?.role === "ADMIN" ? [{ id: "system" as const, label: "System" }] : []),
   ];
 
   // System settings state (admin only)
