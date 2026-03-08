@@ -192,7 +192,23 @@ export default function SettingsPage() {
     finally { setSubmittingEmail(false); }
   };
 
-  const tabs = [{ id: "profile", label: "Profile" }, { id: "security", label: "Security" }, { id: "notifications", label: "Notifications" }];
+  const tabs = [
+    { id: "profile", label: "Profile" },
+    { id: "security", label: "Security" },
+    { id: "notifications", label: "Notifications" },
+    ...(user?.role === "ADMIN" ? [{ id: "system", label: "System" }] : []),
+  ];
+
+  // System settings state (admin only)
+  const [systemSettings, setSystemSettings] = useState({ payrollEnabled: false });
+  const [savingSystem, setSavingSystem] = useState(false);
+
+  useEffect(() => {
+    if (user?.role !== "ADMIN") return;
+    fetch("/api/system-settings").then(r => r.json()).then(({ data }) => {
+      if (data) setSystemSettings({ payrollEnabled: data.payrollEnabled === "true" });
+    }).catch(() => {});
+  }, [user]);
 
   const pwStrength = (pw: string) => {
     if (!pw) return { score: 0, label: "", color: "" };
@@ -511,6 +527,42 @@ export default function SettingsPage() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {tab === "system" && user?.role === "ADMIN" && (
+            <div className="space-y-5">
+              <div className="card p-6 space-y-5">
+                <h3 className="text-[14px] font-bold text-text-main">System Features</h3>
+                <div className="flex items-center justify-between py-3 border-b border-border">
+                  <div>
+                    <div className="text-[13px] font-semibold text-text-main">Payroll Integration</div>
+                    <div className="text-[11px] text-text-muted">Show the Payroll section in the navigation for all users</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const next = !systemSettings.payrollEnabled;
+                      setSystemSettings(s => ({ ...s, payrollEnabled: next }));
+                      setSavingSystem(true);
+                      try {
+                        const res = await fetch("/api/system-settings", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ payrollEnabled: String(next) }),
+                        });
+                        const json = await res.json();
+                        if (!res.ok) throw new Error(json.error);
+                        toast.success(`Payroll ${next ? "enabled" : "disabled"} — reload to see nav changes`);
+                      } catch (e: any) { toast.error(e.message); }
+                      finally { setSavingSystem(false); }
+                    }}
+                    className={`relative inline-flex items-center w-10 h-5 rounded-full transition-colors flex-shrink-0 ${systemSettings.payrollEnabled ? "bg-accent" : "bg-border"}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${systemSettings.payrollEnabled ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                </div>
+                {savingSystem && <p className="text-[11px] text-text-muted animate-pulse">Saving…</p>}
+              </div>
             </div>
           )}
         </div>
