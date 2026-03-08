@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 export default function SettingsPage() {
   const { user, refresh } = useAuth();
   const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
-  const [tab, setTab] = useState("profile");
+  const [tab, setTab] = useState<"profile" | "security" | "notifications" | "system">("profile");
   const [form, setForm] = useState({ name: user?.name || "", email: user?.email || "", jobTitle: user?.employee?.jobTitle || "" });
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [saving, setSaving] = useState(false);

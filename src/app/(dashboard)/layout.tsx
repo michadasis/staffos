@@ -22,11 +22,6 @@ const NAV_ALL = [
 ];
 
 // Priority items shown in mobile bottom nav (max 5) per role
-const MOBILE_NAV: Record<string, string[]> = {
-  ADMIN:   ["/dashboard", "/staff", "/tasks", "/messages", "/audit-logs", "/backup"],
-  MANAGER: ["/dashboard", "/staff", "/tasks", "/messages", "/audit-logs", "/backup"],
-  STAFF:   ["/dashboard", "/tasks", "/messages", "/settings"],
-};
 
 function Avatar({ name, size = 36 }: { name: string; size?: number }) {
   const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -162,31 +157,67 @@ function MobileDrawer({ open, onClose, payrollEnabled }: { open: boolean; onClos
   );
 }
 
-// Mobile bottom nav bar (shows 4-5 most important items)
+// Mobile bottom nav — shows all nav items via a scrollable "More" drawer
 function BottomNav({ payrollEnabled }: { payrollEnabled: boolean }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const role = user?.role || "STAFF";
+  const [showMore, setShowMore] = useState(false);
 
-  const priorityHrefs = MOBILE_NAV[role] || MOBILE_NAV.STAFF;
-  const mobileNav = priorityHrefs
-    .map((href) => NAV_ALL.find((n) => n.href === href))
-    .filter((n): n is typeof NAV_ALL[0] => !!n && n.roles.includes(role) && (!(n as any).payrollOnly || payrollEnabled));
+  const allNav = NAV_ALL.filter((n) => n.roles.includes(role) && (!(n as any).payrollOnly || payrollEnabled));
+
+  // Always-visible items in the bar (first 4, always include Settings at end)
+  const pinned = allNav.slice(0, 4);
+  const overflow = allNav.slice(4);
+  const hasMore = overflow.length > 0;
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-30 flex" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-      {mobileNav.map((n) => {
-        const active = pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href));
-        return (
-          <Link key={n.href} href={n.href}
-            className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors
-              ${active ? "text-accent" : "text-text-muted"}`}>
-            <span className="text-lg leading-none">{n.icon}</span>
-            <span className="text-[8px] font-semibold tracking-tight">{n.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-30 flex" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        {pinned.map((n) => {
+          const active = pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href));
+          return (
+            <Link key={n.href} href={n.href}
+              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${active ? "text-accent" : "text-text-muted"}`}>
+              <span className="text-lg leading-none">{n.icon}</span>
+              <span className="text-[8px] font-semibold tracking-tight">{n.label}</span>
+            </Link>
+          );
+        })}
+        {hasMore && (
+          <button onClick={() => setShowMore(true)}
+            className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-text-muted">
+            <span className="text-lg leading-none">☰</span>
+            <span className="text-[8px] font-semibold tracking-tight">More</span>
+          </button>
+        )}
+      </nav>
+
+      {/* More drawer */}
+      {showMore && (
+        <>
+          <div onClick={() => setShowMore(false)} className="md:hidden fixed inset-0 bg-black/60 z-40" />
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-50 rounded-t-2xl overflow-hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <span className="text-[13px] font-bold text-text-main">Navigation</span>
+              <button onClick={() => setShowMore(false)} className="text-text-muted hover:text-text-main text-xl">✕</button>
+            </div>
+            <div className="grid grid-cols-4 gap-0 max-h-[60vh] overflow-y-auto">
+              {allNav.map((n) => {
+                const active = pathname === n.href || (n.href !== "/dashboard" && pathname.startsWith(n.href));
+                return (
+                  <Link key={n.href} href={n.href} onClick={() => setShowMore(false)}
+                    className={`flex flex-col items-center justify-center py-4 gap-1.5 transition-colors border-b border-border/50 ${active ? "text-accent bg-accent/5" : "text-text-muted hover:bg-surface-alt"}`}>
+                    <span className="text-2xl leading-none">{n.icon}</span>
+                    <span className="text-[10px] font-semibold text-center leading-tight">{n.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
