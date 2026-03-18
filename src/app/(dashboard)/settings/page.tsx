@@ -530,7 +530,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {tab === "system" && user?.role === "ADMIN" && (
+          {(tab as string) === "system" && user?.role === "ADMIN" && (
             <div className="space-y-5">
               <div className="card p-6 space-y-5">
                 <h3 className="text-[14px] font-bold text-text-main">System Features</h3>
