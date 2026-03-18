@@ -13,13 +13,24 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [showEmailChange, setShowEmailChange] = useState(false);
-  // Notification prefs
   const [notifPrefs, setNotifPrefs] = useState({ notifTaskAssigned: true, notifNewMessage: true, notifAnnouncements: true, notifWeeklyDigest: true });
   const [savingNotif, setSavingNotif] = useState(false);
-  // Announcement composer (admin/manager only)
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const [announcement, setAnnouncement] = useState({ subject: "", body: "" });
   const [sendingAnnouncement, setSendingAnnouncement] = useState(false);
+  const [submittingEmail, setSubmittingEmail] = useState(false);
+  const [changingPw, setChangingPw] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState((user as any)?.twoFactorEnabled || false);
+  const [tfaStep, setTfaStep] = useState<"idle" | "setup" | "disable">("idle");
+  const [tfaQrCode, setTfaQrCode] = useState("");
+  const [tfaSecret, setTfaSecret] = useState("");
+  const [tfaCode, setTfaCode] = useState("");
+  const [tfaLoading, setTfaLoading] = useState(false);
+  const [systemSettings, setSystemSettings] = useState({ payrollEnabled: false });
+  const [savingSystem, setSavingSystem] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/notification-prefs")
@@ -27,6 +38,13 @@ export default function SettingsPage() {
       .then(({ data }) => { if (data) setNotifPrefs(data); })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (user?.role !== "ADMIN") return;
+    fetch("/api/system-settings").then(r => r.json()).then(({ data }) => {
+      if (data) setSystemSettings({ payrollEnabled: data.payrollEnabled === "true" });
+    }).catch(() => {});
+  }, [user]);
 
   const toggleNotif = async (key: keyof typeof notifPrefs) => {
     const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
@@ -59,18 +77,6 @@ export default function SettingsPage() {
     } catch (e: any) { toast.error(e.message); }
     finally { setSendingAnnouncement(false); }
   };
-  const [submittingEmail, setSubmittingEmail] = useState(false);
-  const [changingPw, setChangingPw] = useState(false);
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-
-  // 2FA state
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState((user as any)?.twoFactorEnabled || false);
-  const [tfaStep, setTfaStep] = useState<"idle" | "setup" | "disable">("idle");
-  const [tfaQrCode, setTfaQrCode] = useState("");
-  const [tfaSecret, setTfaSecret] = useState("");
-  const [tfaCode, setTfaCode] = useState("");
-  const [tfaLoading, setTfaLoading] = useState(false);
 
   const startTfaSetup = async () => {
     setTfaLoading(true);
@@ -122,7 +128,6 @@ export default function SettingsPage() {
     } catch (err: any) { toast.error(err.message); }
     finally { setTfaLoading(false); }
   };
-  const [showConfirm, setShowConfirm] = useState(false);
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,14 +147,8 @@ export default function SettingsPage() {
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pwForm.newPassword !== pwForm.confirmPassword) {
-      toast.error("New passwords don't match");
-      return;
-    }
-    if (pwForm.newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
+    if (pwForm.newPassword !== pwForm.confirmPassword) { toast.error("New passwords don't match"); return; }
+    if (pwForm.newPassword.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     setChangingPw(true);
     try {
       const res = await fetch("/api/auth/change-password", {
@@ -198,17 +197,6 @@ export default function SettingsPage() {
     { id: "notifications", label: "Notifications" },
     ...(user?.role === "ADMIN" ? [{ id: "system" as const, label: "System" }] : []),
   ];
-
-  // System settings state (admin only)
-  const [systemSettings, setSystemSettings] = useState({ payrollEnabled: false });
-  const [savingSystem, setSavingSystem] = useState(false);
-
-  useEffect(() => {
-    if (user?.role !== "ADMIN") return;
-    fetch("/api/system-settings").then(r => r.json()).then(({ data }) => {
-      if (data) setSystemSettings({ payrollEnabled: data.payrollEnabled === "true" });
-    }).catch(() => {});
-  }, [user]);
 
   const pwStrength = (pw: string) => {
     if (!pw) return { score: 0, label: "", color: "" };
@@ -373,16 +361,12 @@ export default function SettingsPage() {
                 {twoFactorEnabled ? "Enabled" : "Disabled"}
               </span>
             </div>
-
             {tfaStep === "idle" && (
-              <button
-                onClick={() => twoFactorEnabled ? setTfaStep("disable") : startTfaSetup()}
-                disabled={tfaLoading}
+              <button onClick={() => twoFactorEnabled ? setTfaStep("disable") : startTfaSetup()} disabled={tfaLoading}
                 className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-colors disabled:opacity-50 ${twoFactorEnabled ? "text-danger border-danger/30 bg-danger/5 hover:bg-danger/10" : "btn-primary"}`}>
                 {tfaLoading ? "Loading…" : twoFactorEnabled ? "Disable 2FA" : "Enable 2FA"}
               </button>
             )}
-
             {tfaStep === "setup" && (
               <div className="bg-surface-alt border border-border rounded-2xl p-5 space-y-4">
                 <div className="text-[12px] text-text-muted leading-relaxed">
@@ -399,16 +383,9 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="label">Enter the 6-digit code to confirm</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={tfaCode}
+                  <input type="text" inputMode="numeric" maxLength={6} value={tfaCode}
                     onChange={(e) => setTfaCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="000000"
-                    className="input text-center text-xl tracking-[0.4em] font-mono"
-                    autoFocus
-                  />
+                    placeholder="000000" className="input text-center text-xl tracking-[0.4em] font-mono" autoFocus />
                 </div>
                 <div className="flex gap-2.5">
                   <button onClick={confirmTfaEnable} disabled={tfaLoading || tfaCode.length !== 6} className="btn-primary flex-1 disabled:opacity-50">
@@ -418,25 +395,18 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-
             {tfaStep === "disable" && (
               <div className="bg-danger/5 border border-danger/20 rounded-2xl p-5 space-y-4">
                 <p className="text-[12px] text-text-muted">Enter your current authenticator code to confirm disabling 2FA.</p>
                 <div>
                   <label className="label">Authentication Code</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={tfaCode}
+                  <input type="text" inputMode="numeric" maxLength={6} value={tfaCode}
                     onChange={(e) => setTfaCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="000000"
-                    className="input text-center text-xl tracking-[0.4em] font-mono"
-                    autoFocus
-                  />
+                    placeholder="000000" className="input text-center text-xl tracking-[0.4em] font-mono" autoFocus />
                 </div>
                 <div className="flex gap-2.5">
-                  <button onClick={confirmTfaDisable} disabled={tfaLoading || tfaCode.length !== 6} className="flex-1 py-2.5 rounded-xl bg-danger text-white font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50">
+                  <button onClick={confirmTfaDisable} disabled={tfaLoading || tfaCode.length !== 6}
+                    className="flex-1 py-2.5 rounded-xl bg-danger text-white font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50">
                     {tfaLoading ? "Disabling…" : "Disable 2FA"}
                   </button>
                   <button onClick={() => { setTfaStep("idle"); setTfaCode(""); }} className="btn-ghost flex-1">Cancel</button>
@@ -476,10 +446,8 @@ export default function SettingsPage() {
                   <div className="text-[13px] font-semibold text-text-main">{label}</div>
                   <div className="text-[11px] text-text-muted">{desc}</div>
                 </div>
-                <button
-                  onClick={() => toggleNotif(key)}
-                  className={`relative inline-flex items-center w-10 h-5 rounded-full transition-colors flex-shrink-0 ${notifPrefs[key] ? "bg-accent" : "bg-border"}`}
-                >
+                <button onClick={() => toggleNotif(key)}
+                  className={`relative inline-flex items-center w-10 h-5 rounded-full transition-colors flex-shrink-0 ${notifPrefs[key] ? "bg-accent" : "bg-border"}`}>
                   <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${notifPrefs[key] ? "translate-x-5" : "translate-x-0"}`} />
                 </button>
               </div>
@@ -501,70 +469,58 @@ export default function SettingsPage() {
                 <div className="mt-4 space-y-3 border-t border-border pt-4">
                   <div>
                     <label className="label">Subject</label>
-                    <input
-                      value={announcement.subject}
-                      onChange={e => setAnnouncement(a => ({ ...a, subject: e.target.value }))}
-                      placeholder="e.g. Office closed Friday"
-                      className="input w-full"
-                    />
+                    <input value={announcement.subject} onChange={e => setAnnouncement(a => ({ ...a, subject: e.target.value }))}
+                      placeholder="e.g. Office closed Friday" className="input w-full" />
                   </div>
                   <div>
                     <label className="label">Message</label>
-                    <textarea
-                      value={announcement.body}
-                      onChange={e => setAnnouncement(a => ({ ...a, body: e.target.value }))}
-                      placeholder="Write your announcement here…"
-                      rows={5}
-                      className="input w-full resize-none"
-                    />
+                    <textarea value={announcement.body} onChange={e => setAnnouncement(a => ({ ...a, body: e.target.value }))}
+                      placeholder="Write your announcement here…" rows={5} className="input w-full resize-none" />
                   </div>
-                  <button
-                    onClick={sendAnnouncement}
-                    disabled={sendingAnnouncement || !announcement.subject.trim() || !announcement.body.trim()}
-                    className="btn-primary w-full disabled:opacity-50"
-                  >
+                  <button onClick={sendAnnouncement} disabled={sendingAnnouncement || !announcement.subject.trim() || !announcement.body.trim()}
+                    className="btn-primary w-full disabled:opacity-50">
                     {sendingAnnouncement ? "Sending…" : "Send to All Staff"}
                   </button>
                 </div>
               )}
             </div>
           )}
+        </div>
+      )}
 
-          {(tab as string) === "system" && (
-            <div className="space-y-5">
-              <div className="card p-6 space-y-5">
-                <h3 className="text-[14px] font-bold text-text-main">System Features</h3>
-                <div className="flex items-center justify-between py-3 border-b border-border">
-                  <div>
-                    <div className="text-[13px] font-semibold text-text-main">Payroll Integration</div>
-                    <div className="text-[11px] text-text-muted">Show the Payroll section in the navigation for all users</div>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      const next = !systemSettings.payrollEnabled;
-                      setSystemSettings(s => ({ ...s, payrollEnabled: next }));
-                      setSavingSystem(true);
-                      try {
-                        const res = await fetch("/api/system-settings", {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ payrollEnabled: String(next) }),
-                        });
-                        const json = await res.json();
-                        if (!res.ok) throw new Error(json.error);
-                        toast.success(`Payroll ${next ? "enabled" : "disabled"} — reload to see nav changes`);
-                      } catch (e: any) { toast.error(e.message); }
-                      finally { setSavingSystem(false); }
-                    }}
-                    className={`relative inline-flex items-center w-10 h-5 rounded-full transition-colors flex-shrink-0 ${systemSettings.payrollEnabled ? "bg-accent" : "bg-border"}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${systemSettings.payrollEnabled ? "translate-x-5" : "translate-x-0"}`} />
-                  </button>
-                </div>
-                {savingSystem && <p className="text-[11px] text-text-muted animate-pulse">Saving…</p>}
+      {tab === "system" && user?.role === "ADMIN" && (
+        <div className="space-y-5">
+          <div className="card p-6 space-y-5">
+            <h3 className="text-[14px] font-bold text-text-main">System Features</h3>
+            <div className="flex items-center justify-between py-3 border-b border-border">
+              <div>
+                <div className="text-[13px] font-semibold text-text-main">Payroll Integration</div>
+                <div className="text-[11px] text-text-muted">Show the Payroll section in the navigation for all users</div>
               </div>
+              <button
+                onClick={async () => {
+                  const next = !systemSettings.payrollEnabled;
+                  setSystemSettings(s => ({ ...s, payrollEnabled: next }));
+                  setSavingSystem(true);
+                  try {
+                    const res = await fetch("/api/system-settings", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ payrollEnabled: String(next) }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json.error);
+                    toast.success(`Payroll ${next ? "enabled" : "disabled"} — reload to see nav changes`);
+                  } catch (e: any) { toast.error(e.message); }
+                  finally { setSavingSystem(false); }
+                }}
+                className={`relative inline-flex items-center w-10 h-5 rounded-full transition-colors flex-shrink-0 ${systemSettings.payrollEnabled ? "bg-accent" : "bg-border"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${systemSettings.payrollEnabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
             </div>
-          )}
+            {savingSystem && <p className="text-[11px] text-text-muted animate-pulse">Saving…</p>}
+          </div>
         </div>
       )}
     </div>
